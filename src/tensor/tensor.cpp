@@ -164,27 +164,91 @@ void Tensor::debug() const {
 }
 
 bool Tensor::isContiguous() const {
-    TO_BE_IMPLEMENTED();
+    auto &shape = this->shape();
+    auto &strides = this->strides();
+
+    if (shape.empty()) {
+        return true; // Scalars are contiguous
+    }
+
+    ptrdiff_t expected_stride = 1;
+    for (int i = shape.size() - 1; i >= 0; i--) {
+        if (strides[i] != expected_stride) {
+            return false;
+        }
+        expected_stride *= shape[i]; // stride[i] = product of shape[i+1:]
+    }
     return true;
 }
 
 tensor_t Tensor::permute(const std::vector<size_t> &order) const {
-    TO_BE_IMPLEMENTED();
-    return std::shared_ptr<Tensor>(new Tensor(_meta, _storage));
+    const std::vector<size_t> &shape = this->shape();
+    const std::vector<ptrdiff_t> &strides = this->strides();
+    if (order.size() != shape.size()) {
+        throw std::runtime_error("Tensor::permute order size does not match tensor dimensions");
+    }
+    std::vector<size_t> new_shape(shape.size());
+    std::vector<ptrdiff_t> new_strides(shape.size());
+    for (size_t i = 0; i < order.size(); i++) {
+        if (order[i] >= shape.size()) {
+            throw std::runtime_error("Tensor::permute order index out of bounds");
+        }
+        new_shape[i] = shape[order[i]];
+        new_strides[i] = strides[order[i]]; // 物理地址 = 基地址 + Σ(索引[i] × stride[i])
+    }
+    TensorMeta new_meta = _meta; // Copy the existing meta
+    new_meta.shape = new_shape;
+    new_meta.strides = new_strides;
+    return std::shared_ptr<Tensor>(new Tensor(new_meta, _storage));
 }
 
 tensor_t Tensor::view(const std::vector<size_t> &shape) const {
-    TO_BE_IMPLEMENTED();
-    return std::shared_ptr<Tensor>(new Tensor(_meta, _storage));
+    size_t new_numel = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
+    if (new_numel != this->numel()) {
+        throw std::runtime_error("Tensor::view shape does not match total number of elements");
+    }
+    if (!this->isContiguous()) {
+        throw std::runtime_error("Tensor::view requires a contiguous tensor");
+    }
+    std::vector<ptrdiff_t> new_strides(shape.size());
+    size_t stride = 1;
+    for (int i = shape.size() - 1; i >= 0; --i) {
+        new_strides[i] = stride;
+        stride *= shape[i];
+    }
+    TensorMeta new_meta = _meta; // Copy the existing meta
+    new_meta.shape = shape;
+    new_meta.strides = new_strides;
+    return std::shared_ptr<Tensor>(new Tensor(new_meta, _storage));
 }
 
 tensor_t Tensor::slice(size_t dim, size_t start, size_t end) const {
-    TO_BE_IMPLEMENTED();
-    return std::shared_ptr<Tensor>(new Tensor(_meta, _storage));
+    const std::vector<size_t> &shape = this->shape();
+    if (dim >= shape.size()) {
+        throw std::runtime_error("Tensor::slice dimension out of bounds");
+    }
+    if (start >= end || end > shape[dim]) {
+        throw std::runtime_error("Tensor::slice invalid start or end indices");
+    }
+    TensorMeta new_meta = _meta; // Copy the existing meta
+    new_meta.shape[dim] = end - start;
+    size_t new_offset = _offset + start * _meta.strides[dim] * this->elementSize(); // slice causes offset change; new offset = old offset + start * stride[dim] * element size;
+    new_meta.strides[dim] = _meta.strides[dim]; // The stride remains the same for the sliced dimension
+    return std::shared_ptr<Tensor>(new Tensor(new_meta, _storage, new_offset)); // 
 }
 
 void Tensor::load(const void *src_) {
-    TO_BE_IMPLEMENTED();
+    size_t bytes = this->numel() * this->elementSize();
+    if (this->deviceType() == LLAISYS_DEVICE_CPU) {
+        std::memcpy(this->data(), src_, bytes);
+    } else {
+        core::context().runtime().api()->memcpy_sync(
+            this->data(),
+            src_,
+            bytes,
+            LLAISYS_MEMCPY_H2D);
+            core::context().runtime().api()->device_synchronize();
+    }
 }
 
 tensor_t Tensor::contiguous() const {
