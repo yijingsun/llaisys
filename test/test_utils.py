@@ -29,7 +29,7 @@ def random_tensor(
         torch_tensor.data_ptr(),
         bytes_,
         llaisys.MemcpyKind.D2D,
-    )
+    ) # copy data from pytorch tensor to llaisys tensor
 
     return torch_tensor, llaisys_tensor
 

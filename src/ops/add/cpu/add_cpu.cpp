@@ -8,7 +8,7 @@ template <typename T>
 void add_(T *c, const T *a, const T *b, size_t numel) {
     for (size_t i = 0; i < numel; i++) {
         if constexpr (std::is_same_v<T, llaisys::bf16_t> || std::is_same_v<T, llaisys::fp16_t>) {
-            c[i] = llaisys::utils::cast<T>(llaisys::utils::cast<float>(a[i]) + llaisys::utils::cast<float>(b[i]));
+            c[i] = llaisys::utils::cast<T>(llaisys::utils::cast<float>(a[i]) + llaisys::utils::cast<float>(b[i])); // cast to float for addition, then cast back to T
         } else {
             c[i] = a[i] + b[i];
         }
