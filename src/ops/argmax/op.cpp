@@ -3,50 +3,33 @@
 #include "../../core/llaisys_core.hpp"
 #include "../../utils.hpp"
 
-#include <cmath>
-
-template <typename T>
-void argmax_(int64_t *max_idx, T *max_val, const T *vals, size_t numel) {
-    size_t max_index = 0;
-    float max_value = std::numeric_limits<float>::lowest();
-    for (size_t i = 0; i < numel; i++) {
-        float val;
-        if constexpr (std::is_same_v<T, llaisys::bf16_t> || std::is_same_v<T, llaisys::fp16_t>) {
-            val = llaisys::utils::cast<float>(vals[i]);
-        } else {
-            val = vals[i];
-        }
-        if (val > max_value) {
-            max_value = val;
-            max_index = i;
-        }
-    }
-    
-    max_idx[0] = static_cast<int64_t>(max_index);
-    if constexpr (std::is_same_v<T, llaisys::bf16_t> || std::is_same_v<T, llaisys::fp16_t>) {
-        max_val[0] = llaisys::utils::cast<T>(max_value);
-    } else {
-        max_val[0] = max_value;
-    }
-}
+#include "cpu/argmax_cpu.hpp"
 
 namespace llaisys::ops {
 void argmax(tensor_t max_idx, tensor_t max_val, const tensor_t vals) {
+    CHECK_SAME_DEVICE(max_idx, max_val, vals);
     CHECK_ARGUMENT(vals->numel() != 0, "argmax: input tensor is empty.");
-    CHECK_ARGUMENT(max_val->dtype() == vals->dtype(), "argmax: max_val tensor must have the same dtype as vals tensor.");
-    
-    llaisysDataType_t type = vals->dtype();
-    size_t numel = vals->numel();
+    CHECK_SAME_DTYPE(max_val->dtype(), vals->dtype());
+    // Only support contiguous inputs with same shape for now.
+    ASSERT(max_idx->isContiguous() && max_val->isContiguous() && vals->isContiguous(), "Add: all tensors must be contiguous.");
 
-    switch (type) {
-    case LLAISYS_DTYPE_F32:
-        return argmax_(reinterpret_cast<int64_t *>(max_idx->data()), reinterpret_cast<float *>(max_val->data()), reinterpret_cast<const float *>(vals->data()), numel);
-    case LLAISYS_DTYPE_BF16:
-        return argmax_(reinterpret_cast<int64_t *>(max_idx->data()), reinterpret_cast<llaisys::bf16_t *>(max_val->data()), reinterpret_cast<const llaisys::bf16_t *>(vals->data()), numel);
-    case LLAISYS_DTYPE_F16:
-        return argmax_(reinterpret_cast<int64_t *>(max_idx->data()), reinterpret_cast<llaisys::fp16_t *>(max_val->data()), reinterpret_cast<const llaisys::fp16_t *>(vals->data()), numel);
+    // always support cpu calculation
+    if (max_idx->deviceType() == LLAISYS_DEVICE_CPU) {
+        return cpu::argmax(max_idx->data(), max_val->data(), vals->data(), vals->dtype(), vals->numel());
+    }
+
+    llaisys::core::context().setDevice(max_idx->deviceType(), max_idx->deviceId());
+
+    switch (max_idx->deviceType()) {
+    case LLAISYS_DEVICE_CPU:
+        return cpu::argmax(max_idx->data(), max_val->data(), vals->data(), vals->dtype(), vals->numel());
+#ifdef ENABLE_NVIDIA_API
+    case LLAISYS_DEVICE_NVIDIA:
+        TO_BE_IMPLEMENTED();
+        return;
+#endif
     default:
-        EXCEPTION_UNSUPPORTED_DATATYPE(type);
+        EXCEPTION_UNSUPPORTED_DEVICE;
     }
 }
 } // namespace llaisys::ops
