@@ -13,6 +13,6 @@ __C {
     } LlaisysQwen2Meta;
 
     typedef struct LlaisysQwen2Weights {
-        llaisys::models::qwen2::ModelWeights_t weights;
+        llaisys::models::qwen2::model_weights_t weights;
     } LlaisysQwen2Weights;
 }

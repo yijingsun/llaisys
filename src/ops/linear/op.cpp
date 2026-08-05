@@ -7,10 +7,15 @@
 
 namespace llaisys::ops {
 void linear(tensor_t out, tensor_t in, tensor_t weight, tensor_t bias) {
-    CHECK_SAME_DEVICE(out, in, weight, bias);
+    if (bias) {
+        CHECK_SAME_DEVICE(out, in, weight, bias);
+        CHECK_SAME_DTYPE(out->dtype(), in->dtype(), weight->dtype(), bias->dtype());
+    } else {
+        CHECK_SAME_DEVICE(out, in, weight);
+        CHECK_SAME_DTYPE(out->dtype(), in->dtype(), weight->dtype());
+    }
     // Only support contiguous inputs for now.
-    ASSERT(out->isContiguous() && in->isContiguous() && weight->isContiguous() && bias->isContiguous(), "Linear: all tensors must be contiguous.");
-    CHECK_SAME_DTYPE(out->dtype(), in->dtype(), weight->dtype(), bias->dtype());
+    ASSERT(out->isContiguous() && in->isContiguous() && weight->isContiguous() && (!bias || bias->isContiguous()), "Linear: all tensors must be contiguous.");
     
     // in [batch, in_features], weight [out_features, in_features], bias [out_features], out [batch, out_features]
     // out = in * weight^T + bias

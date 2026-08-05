@@ -4,16 +4,19 @@
 
 #include <cmath>
 
+#include <vector>
+
 template <typename T>
 void self_attention_(T *attn_val, const T *q, const T *k, const T *v, float scale, size_t seqlen, size_t nhead, size_t d, size_t total_len, size_t nkvhead, size_t dv) {
     // mask[i][j] = -inf if j > total_len - seqlen + i else 0
-    float mask[seqlen][total_len];
+    std::vector<float> mask_data(seqlen * total_len);
+    auto mask = [&](size_t i, size_t j) -> float& { return mask_data[i * total_len + j]; };
     for (size_t i = 0; i < seqlen; i++) {
         for (size_t j = 0; j < total_len; j++) {
             if (j > total_len - seqlen + i) {
-                mask[i][j] = -INFINITY;
+                mask(i, j) = -INFINITY;
             } else {
-                mask[i][j] = 0.0f;
+                mask(i, j) = 0.0f;
             }
         }
     }
@@ -21,7 +24,7 @@ void self_attention_(T *attn_val, const T *q, const T *k, const T *v, float scal
         int head_idx = j * nkvhead / nhead;
         for (size_t i = 0; i < seqlen; i++) {
             float sum_exp_scores = 0.0f;
-            float masked_exp_scores[total_len];
+            std::vector<float> masked_exp_scores(total_len);
 
             for (size_t k_idx = 0; k_idx < total_len; k_idx++) {
                 float dot_product = 0.0f;
@@ -32,7 +35,7 @@ void self_attention_(T *attn_val, const T *q, const T *k, const T *v, float scal
                         dot_product += q[i * nhead * d + j * d + n] * k[k_idx * nkvhead * d + head_idx * d + n];
                     }
                 }
-                masked_exp_scores[k_idx] = std::exp(dot_product * scale + mask[i][k_idx]); // apply mask and compute scaled exp scores
+                masked_exp_scores[k_idx] = std::exp(dot_product * scale + mask(i, k_idx)); // apply mask and compute scaled exp scores
                 sum_exp_scores += masked_exp_scores[k_idx];
             }
 

@@ -2,6 +2,7 @@
 
 #include "../../tensor/tensor.hpp"
 #include "../../core/llaisys_core.hpp"
+#include "../kv_cache.hpp"
 
 #include <vector>
 #include <memory>
@@ -9,7 +10,7 @@
 namespace llaisys::models::qwen2 {
 class Model;
 using model_t = std::shared_ptr<Model>;
-using ModelWeights_t = std::shared_ptr<struct ModelWeights>;
+using model_weights_t = std::shared_ptr<struct ModelWeights>;
 
 struct LayerWeights {
     tensor_t attn_norm_w; // rms norm weight
@@ -63,6 +64,7 @@ class Model {
 private:
     ModelMeta _meta;
     ModelWeights _weights;
+    std::vector<KVCache> _kv_caches;
     Model(ModelMeta meta, ModelWeights weights);
 
 public:
@@ -75,7 +77,7 @@ public:
 
     const ModelMeta &meta() const { return _meta; }
     const ModelWeights &weights() const { return _weights; }
-    static tensor_t getTensorByName(const ModelWeights &weights, const std::string &name);
+    std::vector<KVCache> &kv_caches() { return _kv_caches; }
 };
 
 model_t create(
@@ -84,7 +86,7 @@ model_t create(
     const std::vector<int> &device_ids = {},
     int ndevice = 0);
 
-ModelWeights_t getWeights(const model_t &model);
+model_weights_t getWeights(const model_t &model);
 
 void loadWeights(
     const model_t &model,

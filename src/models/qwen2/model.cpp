@@ -1,24 +1,36 @@
 #include "model.hpp"
 
+#include "../../ops/embedding/op.hpp"
+#include "../../ops/rms_norm/op.hpp"
+#include "../../ops/linear/op.hpp"
+#include "../../ops/self_attention/op.hpp"
+#include "../../ops/rope/op.hpp"
+#include "../../ops/add/op.hpp"
+#include "../../ops/swiglu/op.hpp"
+#include "../../ops/argmax/op.hpp"
+
+#include <cmath>
 #include <numeric>
+#include <cstring>
 
 namespace llaisys::models::qwen2 {
 
 Model::Model(ModelMeta meta, ModelWeights weights)
     : _meta(std::move(meta)), _weights(std::move(weights)) {}
 
-int select_device_id(llaisysDeviceType_t device_type, const std::vector<int> &device_ids, int ndevice) {
-    if (device_type == LLAISYS_DEVICE_CPU) {
-        return 0;
-    }
-    if (!device_ids.empty()) {
-        return device_ids[0];
-    }
-    if (ndevice > 0) {
-        return 0;
-    }
-    return 0;
-}
+// forward declarations for helper functions used in infer
+tensor_t get_tensor_by_name_(const ModelWeights &weights, const std::string &name);
+int64_t infer_use_cache_(model_t model, int64_t *token_ids, size_t ntoken);
+int select_device_id(llaisysDeviceType_t device_type, const std::vector<int> &device_ids, int ndevice);
+tensor_t get_token_index_(tensor_t in_embed, int64_t *token_ids, size_t ntoken);
+tensor_t apply_embedding_(tensor_t token_index, tensor_t in_embed);
+tensor_t apply_rms_norm_(tensor_t input, tensor_t norm_w, float rms_epsilon);
+tensor_t apply_linear_(tensor_t input, tensor_t weight, tensor_t bias);
+tensor_t apply_rope_(tensor_t input, tensor_t pos_ids, float rope_theta);
+tensor_t apply_add_(tensor_t a, tensor_t b);
+tensor_t apply_swiglu_(tensor_t gate, tensor_t up);
+tensor_t compute_self_attention_(tensor_t q, tensor_t k, tensor_t v, float scale);
+static tensor_t make_pos_ids_(size_t start, size_t len, llaisysDeviceType_t dev, int id);
 
 model_t Model::create_model(
     const ModelMeta &meta,
@@ -81,7 +93,7 @@ model_t create(
     return Model::create_model(meta, device_type, device_ids, ndevice);
 }
 
-ModelWeights_t getWeights(const model_t &model) {
+model_weights_t getWeights(const model_t &model) {
     if (!model) {
         throw std::runtime_error("Qwen2 model is null");
     }
@@ -97,7 +109,7 @@ void loadWeights(
         throw std::runtime_error("Qwen2 model is null");
     }
 
-    tensor_t tensor = Model::getTensorByName(model->weights(), name);
+    tensor_t tensor = get_tensor_by_name_(model->weights(), name);
     if (!tensor) {
         throw std::runtime_error("Tensor with name " + name + " not found in model weights");
     }
@@ -108,10 +120,157 @@ void loadWeights(
 
     tensor->load(data);
 
-    // std::cout << tensor->info() << std::endl; // debug
+    std::cout << tensor->info() << std::endl; // debug
 }
 
-tensor_t Model::getTensorByName(const ModelWeights &weights, const std::string &name) {
+int64_t infer(model_t model, int64_t *token_ids, size_t ntoken) {
+    // if (!model || !token_ids || ntoken == 0) {
+    //     return -1;
+    // }
+    // if (model->meta().use_cache) {
+    //     return infer_use_cache_(model, token_ids, ntoken);
+    // }
+
+    const auto& model_weights = model->weights();
+    const auto& meta = model->meta();
+
+    tensor_t token_index = get_token_index_(model_weights.in_embed, token_ids, ntoken);
+    tensor_t input = apply_embedding_(token_index, model_weights.in_embed);
+
+    // layers
+    size_t nlayer = meta.nlayer;
+    tensor_t layer_input = input;
+    for (size_t i_layer = 0; i_layer < nlayer; i_layer++) {
+        // attention block
+        const auto& layer_weights = model_weights.get_layer(i_layer);
+        tensor_t attn_norm = apply_rms_norm_(layer_input, layer_weights.attn_norm_w, meta.rms_epsilon);
+        tensor_t attn_q = apply_linear_(attn_norm, layer_weights.attn_q_w, layer_weights.attn_q_b);
+        tensor_t attn_k = apply_linear_(attn_norm, layer_weights.attn_k_w, layer_weights.attn_k_b);
+        tensor_t attn_v = apply_linear_(attn_norm, layer_weights.attn_v_w, layer_weights.attn_v_b);
+        // multi-head
+        size_t dhead = meta.hidden_size / meta.nhead;
+        tensor_t head_q = attn_q->view({attn_q->shape()[0], meta.nhead, dhead});
+        tensor_t head_k = attn_k->view({attn_k->shape()[0], meta.nkvhead, dhead});
+        tensor_t head_v = attn_v->view({attn_v->shape()[0], meta.nkvhead, dhead});
+        // rope
+        tensor_t pos_ids = make_pos_ids_(0, ntoken, head_q->deviceType(), head_q->deviceId());
+        tensor_t rope_q = apply_rope_(head_q, pos_ids, meta.rope_theta);
+        tensor_t rope_k = apply_rope_(head_k, pos_ids, meta.rope_theta);
+        // self-attention
+        float scale = 1.0 / sqrt(dhead);
+        tensor_t attn_val = compute_self_attention_(rope_q, rope_k, head_v, scale);
+        // attention output projection
+        tensor_t attn_proj = apply_linear_(attn_val->view(layer_input->shape()), layer_weights.attn_o_w, nullptr); 
+        // add residual
+        tensor_t attn_out = apply_add_(layer_input, attn_proj);
+
+        // multi-layer perceptron block
+        tensor_t mlp_norm = apply_rms_norm_(attn_out, layer_weights.mlp_norm_w, meta.rms_epsilon);
+        // swiglu
+        tensor_t mlp_gate = apply_linear_(mlp_norm, layer_weights.mlp_gate_w, nullptr);
+        tensor_t mlp_up = apply_linear_(mlp_norm, layer_weights.mlp_up_w, nullptr);
+        tensor_t mlp_swiglu = apply_swiglu_(mlp_gate, mlp_up);
+        // block out
+        tensor_t mlp_out = apply_linear_(mlp_swiglu, layer_weights.mlp_down_w, nullptr);
+
+        // add residual
+        tensor_t layer_out = apply_add_(attn_out, mlp_out);
+        
+        // next layer
+        layer_input = layer_out;
+        // std::cout << "layer " << i_layer << "done" << std::endl; // debug
+    }
+
+    // output embedding
+    tensor_t out_rms_norm = apply_rms_norm_(layer_input, model_weights.out_norm_w, meta.rms_epsilon);
+    // LM head
+    tensor_t logits = apply_linear_(out_rms_norm, model_weights.out_embed, nullptr);
+
+    // find next token
+    tensor_t last_logits = logits->slice(0, ntoken - 1, ntoken); // last line
+    tensor_t max_idx = Tensor::create({1}, LLAISYS_DTYPE_I64, last_logits->deviceType(), last_logits->deviceId());
+    tensor_t max_val = Tensor::create({1}, last_logits->dtype(), last_logits->deviceType(), last_logits->deviceId());
+    llaisys::ops::argmax(max_idx, max_val, last_logits);
+
+    auto* data = reinterpret_cast<int64_t*>(max_idx->data());
+    int64_t next_token_id = data[0];
+
+
+    // sample
+    // temperature
+    // top k
+    // top p
+    
+    
+    return next_token_id;
+}
+
+tensor_t apply_swiglu_(tensor_t gate, tensor_t up) {
+    tensor_t out = Tensor::create(gate->shape(), gate->dtype(), gate->deviceType(), gate->deviceId());
+    llaisys::ops::swiglu(out, gate, up);
+    return out;
+
+}
+
+tensor_t apply_add_(tensor_t a, tensor_t b) {
+    tensor_t out = Tensor::create(a->shape(), a->dtype(), a->deviceType(), a->deviceId());
+    llaisys::ops::add(out, a, b);
+    return out;
+}
+
+tensor_t compute_self_attention_(tensor_t q, tensor_t k, tensor_t v, float scale) {
+    tensor_t out = Tensor::create({q->shape()[0], q->shape()[1], v->shape()[2]}, q->dtype(), q->deviceType(), q->deviceId());
+    llaisys::ops::self_attention(out, q, k, v, scale);
+    return out;
+}
+
+tensor_t apply_rope_(tensor_t input, tensor_t pos_ids, float rope_theta) {
+    tensor_t out = Tensor::create(input->shape(), input->dtype(), input->deviceType(), input->deviceId());
+    llaisys::ops::rope(out, input, pos_ids, rope_theta);
+    return out;
+}
+
+tensor_t apply_linear_(tensor_t input, tensor_t weight, tensor_t bias) {
+    tensor_t out = Tensor::create({input->shape()[0], weight->shape()[0]}, input->dtype(), input->deviceType(), input->deviceId());
+    llaisys::ops::linear(out, input, weight, bias);
+    return out;
+}
+
+tensor_t apply_rms_norm_(tensor_t input, tensor_t norm_w, float rms_epsilon) {
+    tensor_t out = Tensor::create(input->shape(), input->dtype(), input->deviceType(), input->deviceId());
+    llaisys::ops::rms_norm(out, input, norm_w, rms_epsilon);
+    return out;
+}
+
+tensor_t apply_embedding_(tensor_t token_index, tensor_t in_embed) {
+    tensor_t out = Tensor::create({token_index->shape()[0], in_embed->shape()[1]}, in_embed->dtype(), in_embed->deviceType(), in_embed->deviceId());
+    llaisys::ops::embedding(out, token_index, in_embed);
+    return out;
+}
+
+static tensor_t make_pos_ids_(size_t start, size_t len, llaisysDeviceType_t dev, int id) {
+    auto t = Tensor::create({len}, LLAISYS_DTYPE_I64, dev, id);
+    auto* d = reinterpret_cast<int64_t*>(t->data());
+    for (size_t i = 0; i< len; i++) {
+        d[i] = static_cast<int64_t>(start + i);
+    }
+    return t;
+}
+tensor_t get_token_index_(tensor_t in_embed, int64_t *token_ids, size_t ntoken) {
+    tensor_t out = Tensor::create({ntoken}, LLAISYS_DTYPE_I64, in_embed->deviceType(), in_embed->deviceId());
+    out->load(token_ids);
+    return out;
+}
+
+int64_t infer_use_cache_(model_t model, int64_t *token_ids, size_t ntoken) {
+    if (!model || !token_ids || ntoken == 0) {
+        return -1;
+    }
+
+    return -1;
+}
+
+tensor_t get_tensor_by_name_(const ModelWeights &weights, const std::string &name) {
     // Global weights
     if (name == "model.embed_tokens.weight") return weights.in_embed;
     if (name == "model.norm.weight") return weights.out_norm_w;
@@ -153,11 +312,17 @@ tensor_t Model::getTensorByName(const ModelWeights &weights, const std::string &
     return nullptr;
 }
 
-int64_t infer(model_t model, int64_t *token_ids, size_t ntoken) {
-    if (!model || !token_ids || ntoken == 0) {
+int select_device_id(llaisysDeviceType_t device_type, const std::vector<int> &device_ids, int ndevice) {
+    if (device_type == LLAISYS_DEVICE_CPU) {
         return 0;
     }
-    return static_cast<int64_t>(token_ids[ntoken - 1]);
+    if (!device_ids.empty()) {
+        return device_ids[0];
+    }
+    if (ndevice > 0) {
+        return 0;
+    }
+    return 0;
 }
 
 } // namespace llaisys::models::qwen2
