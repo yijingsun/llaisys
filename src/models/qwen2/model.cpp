@@ -132,7 +132,7 @@ void loadWeights(
 
     tensor->load(data);
 
-    std::cout << tensor->info() << std::endl; // debug
+    // std::cout << tensor->info() << std::endl; // debug
 }
 
 int64_t infer(model_t model, int64_t *token_ids, size_t ntoken) {

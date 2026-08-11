@@ -23,9 +23,9 @@ void self_attention_(T *attn_val, const T *q, const T *k, const T *v, float scal
     for (size_t j = 0; j < nhead; j++) {
         int head_idx = j * nkvhead / nhead;
         for (size_t i = 0; i < seqlen; i++) {
-            float sum_exp_scores = 0.0f;
-            std::vector<float> masked_exp_scores(total_len);
-
+            // Pass 1: compute all dot-product scores and find max for numerical stability
+            std::vector<float> scores(total_len);
+            float max_score = -INFINITY;
             for (size_t k_idx = 0; k_idx < total_len; k_idx++) {
                 float dot_product = 0.0f;
                 for (size_t n = 0; n < d; n++) {
@@ -35,14 +35,24 @@ void self_attention_(T *attn_val, const T *q, const T *k, const T *v, float scal
                         dot_product += q[i * nhead * d + j * d + n] * k[k_idx * nkvhead * d + head_idx * d + n];
                     }
                 }
-                masked_exp_scores[k_idx] = std::exp(dot_product * scale + mask(i, k_idx)); // apply mask and compute scaled exp scores
-                sum_exp_scores += masked_exp_scores[k_idx];
+                scores[k_idx] = dot_product * scale + mask(i, k_idx);
+                if (scores[k_idx] > max_score) {
+                    max_score = scores[k_idx];
+                }
+            }
+
+            // Pass 2: compute stable softmax (subtract max before exp)
+            float sum_exp_scores = 0.0f;
+            std::vector<float> softmax_scores(total_len);
+            for (size_t k_idx = 0; k_idx < total_len; k_idx++) {
+                softmax_scores[k_idx] = std::exp(scores[k_idx] - max_score);
+                sum_exp_scores += softmax_scores[k_idx];
             }
 
             for (size_t nv = 0; nv < dv; nv++) {
                 float attn_value = 0.0f;
                 for (size_t v_idx = 0; v_idx < total_len; v_idx++) {
-                    float softmax_score = masked_exp_scores[v_idx] / sum_exp_scores; // softmax = exp_score / sum_exp_scores
+                    float softmax_score = softmax_scores[v_idx] / sum_exp_scores;
                     if constexpr (std::is_same_v<T, llaisys::bf16_t> || std::is_same_v<T, llaisys::fp16_t>) {
                         attn_value += softmax_score * llaisys::utils::cast<float>(v[v_idx * nkvhead * dv + head_idx * dv + nv]);
                     } else {
