@@ -105,6 +105,7 @@ target("llaisys-models")
         add_cxflags("-fPIC", "-Wno-unknown-pragmas")
     end
 
+    add_files("src/models/*.cpp")
     add_files("src/models/**/*.cpp")
 
     on_install(function (target) end)

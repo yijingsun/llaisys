@@ -22,6 +22,7 @@ Model::Model(ModelMeta meta, ModelWeights weights)
 tensor_t get_tensor_by_name_(const ModelWeights &weights, const std::string &name);
 int64_t infer_use_cache_(model_t model, int64_t *token_ids, size_t ntoken);
 int select_device_id(llaisysDeviceType_t device_type, const std::vector<int> &device_ids, int ndevice);
+static void init_kv_caches_(model_t &model, llaisysDeviceType_t device_type, int device_id);
 tensor_t get_token_index_(tensor_t in_embed, int64_t *token_ids, size_t ntoken);
 tensor_t apply_embedding_(tensor_t token_index, tensor_t in_embed);
 tensor_t apply_rms_norm_(tensor_t input, tensor_t norm_w, float rms_epsilon);
@@ -82,7 +83,18 @@ model_t Model::create_model(
         layer.mlp_down_w = Tensor::create({meta.hidden_size, meta.d_intermediate}, meta.dtype, device_type, device_id);
     }
 
-    return model_t(new Model(meta, std::move(weights)));
+    auto m = model_t(new Model(meta, std::move(weights)));
+    init_kv_caches_(m, device_type, device_id);
+    return m;
+}
+
+static void init_kv_caches_(model_t &model, llaisysDeviceType_t device_type, int device_id) {
+    const auto &meta = model->meta();
+    auto &caches = model->kv_caches();
+    size_t d_kv = meta.nkvhead * (meta.hidden_size / meta.nhead);
+    for (size_t i = 0; i < meta.nlayer; ++i) {
+        caches.emplace_back(meta.maxseq, d_kv, meta.dtype, device_type, device_id);
+    }
 }
 
 model_t create(
@@ -124,12 +136,12 @@ void loadWeights(
 }
 
 int64_t infer(model_t model, int64_t *token_ids, size_t ntoken) {
-    // if (!model || !token_ids || ntoken == 0) {
-    //     return -1;
-    // }
-    // if (model->meta().use_cache) {
-    //     return infer_use_cache_(model, token_ids, ntoken);
-    // }
+    if (!model || !token_ids || ntoken == 0) {
+        return -1;
+    }
+    if (model->meta().use_cache) {
+        return infer_use_cache_(model, token_ids, ntoken);
+    }
 
     const auto& model_weights = model->weights();
     const auto& meta = model->meta();
@@ -267,7 +279,92 @@ int64_t infer_use_cache_(model_t model, int64_t *token_ids, size_t ntoken) {
         return -1;
     }
 
-    return -1;
+    const auto& model_weights = model->weights();
+    const auto& meta = model->meta();
+    auto& kv_caches = model->kv_caches();
+
+    // Determine past_len from cache (0 for prefill, >0 for decode)
+    size_t past_len = kv_caches.empty() ? 0 : kv_caches[0].curLen();
+
+    // Prefill: process all tokens; Decode: only process the last token
+    int64_t* current_ids = token_ids;
+    size_t current_ntoken = ntoken;
+    if (past_len > 0) {
+        current_ids = &token_ids[ntoken - 1];
+        current_ntoken = 1;
+    }
+
+    // Embedding
+    tensor_t token_index = get_token_index_(model_weights.in_embed, current_ids, current_ntoken);
+    tensor_t input = apply_embedding_(token_index, model_weights.in_embed);
+
+    // Layers
+    size_t nlayer = meta.nlayer;
+    tensor_t layer_input = input;
+    for (size_t i_layer = 0; i_layer < nlayer; i_layer++) {
+        const auto& layer_weights = model_weights.get_layer(i_layer);
+        auto& kv_cache = kv_caches[i_layer];
+
+        // Attention block
+        tensor_t attn_norm = apply_rms_norm_(layer_input, layer_weights.attn_norm_w, meta.rms_epsilon);
+        tensor_t attn_q = apply_linear_(attn_norm, layer_weights.attn_q_w, layer_weights.attn_q_b);
+        tensor_t attn_k = apply_linear_(attn_norm, layer_weights.attn_k_w, layer_weights.attn_k_b);
+        tensor_t attn_v = apply_linear_(attn_norm, layer_weights.attn_v_w, layer_weights.attn_v_b);
+
+        // Multi-head
+        size_t dhead = meta.hidden_size / meta.nhead;
+        tensor_t head_q = attn_q->view({attn_q->shape()[0], meta.nhead, dhead});
+        tensor_t head_k = attn_k->view({attn_k->shape()[0], meta.nkvhead, dhead});
+        tensor_t head_v = attn_v->view({attn_v->shape()[0], meta.nkvhead, dhead});
+
+        // RoPE (positions start from past_len for correct positional encoding)
+        tensor_t pos_ids = make_pos_ids_(past_len, current_ntoken, head_q->deviceType(), head_q->deviceId());
+        tensor_t rope_q = apply_rope_(head_q, pos_ids, meta.rope_theta);
+        tensor_t rope_k = apply_rope_(head_k, pos_ids, meta.rope_theta);
+
+        // Append K/V to cache (flatten to 2D: {seqlen, nkvhead * dhead})
+        size_t d_kv_flat = meta.nkvhead * dhead;
+        tensor_t rope_k_2d = rope_k->view({rope_k->shape()[0], d_kv_flat});
+        tensor_t head_v_2d = head_v->view({head_v->shape()[0], d_kv_flat});
+        kv_cache.append(rope_k_2d, head_v_2d);
+
+        // Self-attention with cached K/V
+        float scale = 1.0 / sqrt(dhead);
+        size_t total_len = kv_cache.curLen();
+        tensor_t cached_k_2d = kv_cache.getK(total_len);
+        tensor_t cached_v_2d = kv_cache.getV(total_len);
+        tensor_t cached_k = cached_k_2d->view({total_len, meta.nkvhead, dhead});
+        tensor_t cached_v = cached_v_2d->view({total_len, meta.nkvhead, dhead});
+        tensor_t attn_val = compute_self_attention_(rope_q, cached_k, cached_v, scale);
+
+        // Attention output projection
+        tensor_t attn_proj = apply_linear_(attn_val->view(layer_input->shape()), layer_weights.attn_o_w, nullptr);
+        tensor_t attn_out = apply_add_(layer_input, attn_proj);
+
+        // MLP block
+        tensor_t mlp_norm = apply_rms_norm_(attn_out, layer_weights.mlp_norm_w, meta.rms_epsilon);
+        tensor_t mlp_gate = apply_linear_(mlp_norm, layer_weights.mlp_gate_w, nullptr);
+        tensor_t mlp_up = apply_linear_(mlp_norm, layer_weights.mlp_up_w, nullptr);
+        tensor_t mlp_swiglu = apply_swiglu_(mlp_gate, mlp_up);
+        tensor_t mlp_out = apply_linear_(mlp_swiglu, layer_weights.mlp_down_w, nullptr);
+        tensor_t layer_out = apply_add_(attn_out, mlp_out);
+
+        layer_input = layer_out;
+    }
+
+    // Output embedding
+    tensor_t out_rms_norm = apply_rms_norm_(layer_input, model_weights.out_norm_w, meta.rms_epsilon);
+    tensor_t logits = apply_linear_(out_rms_norm, model_weights.out_embed, nullptr);
+
+    // Find next token (last position in logits)
+    size_t logit_rows = logits->shape()[0];
+    tensor_t last_logits = logits->slice(0, logit_rows - 1, logit_rows);
+    tensor_t max_idx = Tensor::create({1}, LLAISYS_DTYPE_I64, last_logits->deviceType(), last_logits->deviceId());
+    tensor_t max_val = Tensor::create({1}, last_logits->dtype(), last_logits->deviceType(), last_logits->deviceId());
+    llaisys::ops::argmax(max_idx, max_val, last_logits);
+
+    auto* data = reinterpret_cast<int64_t*>(max_idx->data());
+    return data[0];
 }
 
 tensor_t get_tensor_by_name_(const ModelWeights &weights, const std::string &name) {

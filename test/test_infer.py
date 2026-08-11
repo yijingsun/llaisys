@@ -136,6 +136,8 @@ if __name__ == "__main__":
 
     end_time = time.time()
 
+    del model
+
     print("\n=== Your Result ===\n")
     print("Tokens:")
     print(llaisys_tokens)
