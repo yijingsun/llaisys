@@ -18,6 +18,18 @@ if has_config("nv-gpu") then
     includes("xmake/nvidia.lua")
 end
 
+-- ILUVATAR --
+option("iluvatar-gpu")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Whether to compile implementations for Iluvatar GPU")
+option_end()
+
+if has_config("iluvatar-gpu") then
+    add_defines("ENABLE_ILUVATAR_API")
+    includes("xmake/iluvatar.lua")
+end
+
 target("llaisys-utils")
     set_kind("static")
 
@@ -37,6 +49,9 @@ target("llaisys-device")
     set_kind("static")
     add_deps("llaisys-utils")
     add_deps("llaisys-device-cpu")
+    if has_config("iluvatar-gpu") then
+        add_deps("llaisys-device-iluvatar")
+    end
 
     set_languages("cxx17")
     set_warnings("all", "error")
