@@ -17,7 +17,7 @@ void rms_norm_(T *out, const T *in, const T *weight, float eps, size_t batch_siz
             }
             sum_square += val * val;
         }
-        float mean_square = sum_square / static_cast<int64_t>(in_features) + eps;
+        float mean_square = sum_square / static_cast<float>(in_features) + eps;
         float rms = std::sqrt(mean_square);
 
         for (size_t j = 0; j < in_features; j++) {

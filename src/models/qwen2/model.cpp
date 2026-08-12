@@ -169,7 +169,7 @@ int64_t infer(model_t model, int64_t *token_ids, size_t ntoken) {
         tensor_t rope_q = apply_rope_(head_q, pos_ids, meta.rope_theta);
         tensor_t rope_k = apply_rope_(head_k, pos_ids, meta.rope_theta);
         // self-attention
-        float scale = 1.0 / sqrt(dhead);
+        float scale = static_cast<float>(1.0 / std::sqrt(static_cast<double>(dhead))); // avoid C4244 (double -> float) under MSVC /WX
         tensor_t attn_val = compute_self_attention_(rope_q, rope_k, head_v, scale);
         // attention output projection
         tensor_t attn_proj = apply_linear_(attn_val->view(layer_input->shape()), layer_weights.attn_o_w, nullptr); 
@@ -329,7 +329,7 @@ int64_t infer_use_cache_(model_t model, int64_t *token_ids, size_t ntoken) {
         kv_cache.append(rope_k_2d, head_v_2d);
 
         // Self-attention with cached K/V
-        float scale = 1.0 / sqrt(dhead);
+        float scale = static_cast<float>(1.0 / std::sqrt(static_cast<double>(dhead))); // avoid C4244 (double -> float) under MSVC /WX
         size_t total_len = kv_cache.curLen();
         tensor_t cached_k_2d = kv_cache.getK(total_len);
         tensor_t cached_v_2d = kv_cache.getV(total_len);
