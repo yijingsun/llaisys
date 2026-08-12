@@ -47,17 +47,19 @@ target_end()
 
 target("llaisys-ops-iluvatar")
     set_kind("static")
+    set_toolchains("iluvatar")
     add_deps("llaisys-tensor")
     set_languages("cxx17")
-    set_warnings("all", "error")
-    if not is_plat("windows") then
-        add_cxflags("-fPIC", "-Wno-unknown-pragmas")
-    end
+    set_values("cuda.rdc", false)
+    add_cuflags("-x", "ivcore", {force = true})
+    add_cuflags("-std=c++17", {force = true})
+    add_cuflags("-fPIC", {force = true})
+    add_links("cublas")
+    add_links("cudart")
 
     add_files("../src/ops/*/iluvatar/*.cu")
     add_includedirs("/usr/local/corex/include")
     add_linkdirs("/usr/local/corex/lib64")
-    add_links("cudart")
     add_rpathdirs("/usr/local/corex/lib64")
 
     on_install(function (target) end)
