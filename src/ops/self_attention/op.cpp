@@ -5,6 +5,11 @@
 
 #include "cpu/self_attention_cpu.hpp"
 
+#ifdef ENABLE_NVIDIA_API
+#include "nvidia/self_attention_nvidia.cuh"
+#include "nvidia/flash_attention_nvidia.cuh"
+#endif
+
 #ifdef ENABLE_ILUVATAR_API
 #include "iluvatar/self_attention_iluvatar.cuh"
 #endif
@@ -39,9 +44,29 @@ void self_attention(tensor_t attn_val, tensor_t q, tensor_t k, tensor_t v, float
         return cpu::self_attention(attn_val->data(), q->data(), k->data(), v->data(), scale, attn_val->dtype(),
         q->shape()[0], q->shape()[1], q->shape()[2], k->shape()[0], k->shape()[1], k->shape()[2]);
 #ifdef ENABLE_NVIDIA_API
-    case LLAISYS_DEVICE_NVIDIA:
-        TO_BE_IMPLEMENTED();
+    case LLAISYS_DEVICE_NVIDIA: {
+        size_t seqlen = q->shape()[0];
+        size_t total_len = k->shape()[0];
+        size_t nhead = q->shape()[1];
+        size_t nkvhead = k->shape()[1];
+        size_t d = q->shape()[2];
+        size_t dv = v->shape()[2];
+        constexpr size_t kSplitKVThreshold = 256;
+        if (seqlen > 1 && total_len == seqlen && d == 128 && dv == 128) {
+            nvidia::flash_attention(attn_val->data(), q->data(), k->data(), v->data(),
+                                  scale, attn_val->dtype(), seqlen, nhead, d, total_len, nkvhead, dv);
+        } else if (seqlen == 1 && d == 128 && dv == 128 && total_len > kSplitKVThreshold) {
+            nvidia::flash_attention_decode_splitkv(attn_val->data(), q->data(), k->data(), v->data(),
+                                                 scale, attn_val->dtype(), seqlen, nhead, d, total_len, nkvhead, dv);
+        } else if (seqlen == 1 && d == 128 && dv == 128) {
+            nvidia::flash_attention_decode(attn_val->data(), q->data(), k->data(), v->data(),
+                                         scale, attn_val->dtype(), seqlen, nhead, d, total_len, nkvhead, dv);
+        } else {
+            nvidia::self_attention(attn_val->data(), q->data(), k->data(), v->data(),
+                                 scale, attn_val->dtype(), seqlen, nhead, d, total_len, nkvhead, dv);
+        }
         return;
+    }
 #endif
 #ifdef ENABLE_ILUVATAR_API
     case LLAISYS_DEVICE_ILUVATAR:

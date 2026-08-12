@@ -5,6 +5,10 @@
 
 #include "cpu/rms_norm_cpu.hpp"
 
+#ifdef ENABLE_NVIDIA_API
+#include "nvidia/rms_norm_nvidia.cuh"
+#endif
+
 #ifdef ENABLE_ILUVATAR_API
 #include "iluvatar/rms_norm_iluvatar.cuh"
 #endif
@@ -37,8 +41,8 @@ void rms_norm(tensor_t out, tensor_t in, tensor_t weight, float eps) {
         in->shape()[0], in->shape()[1]);
 #ifdef ENABLE_NVIDIA_API
     case LLAISYS_DEVICE_NVIDIA:
-        TO_BE_IMPLEMENTED();
-        return;
+        return nvidia::rms_norm(out->data(), in->data(), weight->data(), eps, out->dtype(),
+        in->shape()[0], in->shape()[1]);
 #endif
 #ifdef ENABLE_ILUVATAR_API
     case LLAISYS_DEVICE_ILUVATAR:

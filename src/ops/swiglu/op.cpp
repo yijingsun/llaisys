@@ -5,6 +5,10 @@
 
 #include "cpu/swiglu_cpu.hpp"
 
+#ifdef ENABLE_NVIDIA_API
+#include "nvidia/swiglu_nvidia.cuh"
+#endif
+
 #ifdef ENABLE_ILUVATAR_API
 #include "iluvatar/swiglu_iluvatar.cuh"
 #endif
@@ -30,7 +34,7 @@ void swiglu(tensor_t out, tensor_t gate, tensor_t up) {
         return cpu::swiglu(out->data(), gate->data(), up->data(), out->dtype(), up->numel());
 #ifdef ENABLE_NVIDIA_API
     case LLAISYS_DEVICE_NVIDIA:
-        TO_BE_IMPLEMENTED();
+        nvidia::swiglu(out->data(), gate->data(), up->data(), out->dtype(), out->numel());
         return;
 #endif
 #ifdef ENABLE_ILUVATAR_API

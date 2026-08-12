@@ -5,6 +5,10 @@
 
 #include "cpu/embedding_cpu.hpp"
 
+#ifdef ENABLE_NVIDIA_API
+#include "nvidia/embedding_nvidia.cuh"
+#endif
+
 #ifdef ENABLE_ILUVATAR_API
 #include "iluvatar/embedding_iluvatar.cuh"
 #endif
@@ -32,8 +36,7 @@ void embedding(tensor_t out, tensor_t index, tensor_t weight) {
         return cpu::embedding(out->data(), index->data(), weight->data(), out->dtype(), out->shape()[0], weight->shape()[0], weight->shape()[1]);
 #ifdef ENABLE_NVIDIA_API
     case LLAISYS_DEVICE_NVIDIA:
-        TO_BE_IMPLEMENTED();
-        return;
+        return nvidia::embedding(out->data(), index->data(), weight->data(), out->dtype(), out->shape()[0], weight->shape()[0], weight->shape()[1]);
 #endif
 #ifdef ENABLE_ILUVATAR_API
     case LLAISYS_DEVICE_ILUVATAR:
