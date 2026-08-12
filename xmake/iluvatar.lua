@@ -44,3 +44,21 @@ target("llaisys-device-iluvatar")
     add_linkdirs("/usr/local/corex/lib64")
     on_install(function (target) end)
 target_end()
+
+target("llaisys-ops-iluvatar")
+    set_kind("static")
+    add_deps("llaisys-tensor")
+    set_languages("cxx17")
+    set_warnings("all", "error")
+    if not is_plat("windows") then
+        add_cxflags("-fPIC", "-Wno-unknown-pragmas")
+    end
+
+    add_files("../src/ops/*/iluvatar/*.cu")
+    add_includedirs("/usr/local/corex/include")
+    add_linkdirs("/usr/local/corex/lib64")
+    add_links("cudart")
+    add_rpathdirs("/usr/local/corex/lib64")
+
+    on_install(function (target) end)
+target_end()

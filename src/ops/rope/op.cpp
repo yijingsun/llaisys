@@ -5,6 +5,10 @@
 
 #include "cpu/rope_cpu.hpp"
 
+#ifdef ENABLE_ILUVATAR_API
+#include "iluvatar/rope_iluvatar.cuh"
+#endif
+
 namespace llaisys::ops {
 void rope(tensor_t out, tensor_t in, tensor_t pos_ids, float theta) {
     CHECK_SAME_DEVICE(out, in, pos_ids);
@@ -36,6 +40,11 @@ void rope(tensor_t out, tensor_t in, tensor_t pos_ids, float theta) {
     case LLAISYS_DEVICE_NVIDIA:
         TO_BE_IMPLEMENTED();
         return;
+#endif
+#ifdef ENABLE_ILUVATAR_API
+    case LLAISYS_DEVICE_ILUVATAR:
+        return iluvatar::rope(out->data(), in->data(), pos_ids->data(), theta, out->dtype(),
+        in->shape()[0], in->shape()[1], in->shape()[2]);
 #endif
     default:
         EXCEPTION_UNSUPPORTED_DEVICE;

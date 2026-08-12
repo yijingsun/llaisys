@@ -1,0 +1,7 @@
+#pragma once
+#include "llaisys.h"
+#include <cstddef>
+
+namespace llaisys::ops::iluvatar {
+void embedding(std::byte *out, const std::byte *index, const std::byte *weight, llaisysDataType_t type, size_t line_num, size_t vocab_size, size_t embedding_dim);
+}

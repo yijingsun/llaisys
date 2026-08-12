@@ -5,6 +5,10 @@
 
 #include "cpu/self_attention_cpu.hpp"
 
+#ifdef ENABLE_ILUVATAR_API
+#include "iluvatar/self_attention_iluvatar.cuh"
+#endif
+
 namespace llaisys::ops {
 void self_attention(tensor_t attn_val, tensor_t q, tensor_t k, tensor_t v, float scale) {
     CHECK_SAME_DEVICE(attn_val, q, k, v);
@@ -38,6 +42,11 @@ void self_attention(tensor_t attn_val, tensor_t q, tensor_t k, tensor_t v, float
     case LLAISYS_DEVICE_NVIDIA:
         TO_BE_IMPLEMENTED();
         return;
+#endif
+#ifdef ENABLE_ILUVATAR_API
+    case LLAISYS_DEVICE_ILUVATAR:
+        return iluvatar::self_attention(attn_val->data(), q->data(), k->data(), v->data(), scale, attn_val->dtype(),
+        q->shape()[0], q->shape()[1], q->shape()[2], k->shape()[0], k->shape()[1], k->shape()[2]);
 #endif
     default:
         EXCEPTION_UNSUPPORTED_DEVICE;

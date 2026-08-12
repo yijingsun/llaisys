@@ -98,6 +98,9 @@ target_end()
 target("llaisys-ops")
     set_kind("static")
     add_deps("llaisys-ops-cpu")
+    if has_config("iluvatar-gpu") then
+        add_deps("llaisys-ops-iluvatar")
+    end
 
     set_languages("cxx17")
     set_warnings("all", "error")
