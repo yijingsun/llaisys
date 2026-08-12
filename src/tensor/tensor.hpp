@@ -2,6 +2,8 @@
 #include "../core/llaisys_core.hpp"
 
 #include <vector>
+#include <string>
+#include <cstddef>
 namespace llaisys {
 class Tensor;
 using tensor_t = std::shared_ptr<Tensor>;

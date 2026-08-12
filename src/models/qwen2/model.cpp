@@ -12,6 +12,7 @@
 #include <cmath>
 #include <numeric>
 #include <cstring>
+#include <string> // std::stoi; not transitively included under MSVC
 
 namespace llaisys::models::qwen2 {
 
