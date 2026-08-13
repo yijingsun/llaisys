@@ -13,6 +13,10 @@
 #include "iluvatar/add_iluvatar.cuh"
 #endif
 
+#ifdef ENABLE_MOORE_API
+#include "moore/add_moore.cuh"
+#endif
+
 namespace llaisys::ops {
 void add(tensor_t c, tensor_t a, tensor_t b) {
     CHECK_SAME_DEVICE(c, a, b);
@@ -38,6 +42,10 @@ void add(tensor_t c, tensor_t a, tensor_t b) {
 #ifdef ENABLE_ILUVATAR_API
     case LLAISYS_DEVICE_ILUVATAR:
         return iluvatar::add(c->data(), a->data(), b->data(), c->dtype(), c->numel());
+#endif
+#ifdef ENABLE_MOORE_API
+    case LLAISYS_DEVICE_MOORE:
+        return moore::add(c->data(), a->data(), b->data(), c->dtype(), c->numel());
 #endif
     default:
         EXCEPTION_UNSUPPORTED_DEVICE;

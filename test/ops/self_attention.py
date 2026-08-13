@@ -8,7 +8,7 @@ import torch
 from test_utils import random_tensor, check_equal, benchmark
 
 
-def torch_self_attention(attn_val, query, key, value, scale):
+def self_attention_calc(query, key, value, scale):
     query = query.transpose(-2, -3)
     key = key.transpose(-2, -3)
     value = value.transpose(-2, -3)
@@ -17,7 +17,6 @@ def torch_self_attention(attn_val, query, key, value, scale):
 
     temp_mask = torch.ones(L, S, dtype=torch.bool, device=query.device).tril(diagonal=S-L)
     attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
-    attn_bias.to(query.dtype)
 
     key = key.repeat_interleave(query.size(-3) // key.size(-3), -3)
     value = value.repeat_interleave(query.size(-3) // value.size(-3), -3)
@@ -25,7 +24,16 @@ def torch_self_attention(attn_val, query, key, value, scale):
     attn_weight = query @ key.transpose(-2, -1) * scale
     attn_weight += attn_bias
     attn_weight = torch.softmax(attn_weight, dim=-1)
-    attn_val.copy_((attn_weight @ value).transpose(-2, -3))
+    return (attn_weight @ value).transpose(-2, -3)
+
+
+def torch_self_attention(attn_val, query, key, value, scale, device_name="cpu"):
+    if device_name == "moore" and query.dtype == torch.float32:
+        # torch_musa's muDNN matmul keeps ~1e-3 fp32 error (TF32) even with
+        # allow_tf32=False, so compute the fp32 reference on CPU instead.
+        attn_val.copy_(self_attention_calc(query.cpu(), key.cpu(), value.cpu(), scale))
+    else:
+        attn_val.copy_(self_attention_calc(query, key, value, scale))
 
 
 def test_op_self_attention(
@@ -49,13 +57,13 @@ def test_op_self_attention(
     scale = 1.0 / (hd**0.5)
 
     attn_val, attn_val_ = random_tensor((qlen, nh, hd), dtype_name, device_name)
-    torch_self_attention(attn_val, q, k, v, scale)
+    torch_self_attention(attn_val, q, k, v, scale, device_name)
     llaisys.Ops.self_attention(attn_val_, q_, k_, v_, scale)
     assert check_equal(attn_val_, attn_val, atol=atol, rtol=rtol)
 
     if profile:
         benchmark(
-            lambda: torch_self_attention(attn_val, q, k, v, scale),
+            lambda: torch_self_attention(attn_val, q, k, v, scale, device_name),
             lambda: llaisys.Ops.self_attention(attn_val_, q_, k_, v_, scale),
             device_name,
         )
@@ -65,7 +73,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--device", default="cpu", choices=["cpu", "nvidia"], type=str)
+    parser.add_argument("--device", default="cpu", choices=["cpu", "nvidia", "iluvatar", "moore"], type=str)
     parser.add_argument("--profile", action="store_true")
     args = parser.parse_args()
     testShapes = [

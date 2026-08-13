@@ -8,8 +8,13 @@ import torch
 from test_utils import random_tensor, check_equal, benchmark
 
 
-def torch_linear(out, x, w, bias):
-    torch.nn.functional.linear(x, w, bias, out=out)
+def torch_linear(out, x, w, bias, device_name="cpu"):
+    if device_name == "moore" and x.dtype == torch.float32:
+        # torch_musa's muDNN matmul keeps ~1e-3 fp32 error (TF32) even with
+        # allow_tf32=False, so compute the fp32 reference on CPU instead.
+        out.copy_(torch.nn.functional.linear(x.cpu(), w.cpu(), bias.cpu()))
+    else:
+        torch.nn.functional.linear(x, w, bias, out=out)
 
 
 def test_op_linear(
@@ -32,14 +37,14 @@ def test_op_linear(
         bias, bias_ = random_tensor((w_shape[0],), dtype_name, device_name)
 
     out, out_ = random_tensor(out_shape, dtype_name, device_name)
-    torch_linear(out, x, w, bias)
+    torch_linear(out, x, w, bias, device_name)
     llaisys.Ops.linear(out_, x_, w_, bias_)
 
     assert check_equal(out_, out, atol=atol, rtol=rtol)
 
     if profile:
         benchmark(
-            lambda: torch_linear(out, x, w, bias),
+            lambda: torch_linear(out, x, w, bias, device_name),
             lambda: llaisys.Ops.linear(out_, x_, w_, bias_),
             device_name,
         )
@@ -49,7 +54,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--device", default="cpu", choices=["cpu", "nvidia"], type=str)
+    parser.add_argument("--device", default="cpu", choices=["cpu", "nvidia", "iluvatar", "moore"], type=str)
     parser.add_argument("--profile", action="store_true")
     args = parser.parse_args()
     testShapes = [

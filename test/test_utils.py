@@ -1,6 +1,11 @@
 import llaisys
 import torch
 
+# torch_musa defaults allow_tf32=True, making fp32 matmul ~1e-3 inaccurate on
+# large reductions. Tests compare against torch as the reference, so force
+# full fp32 precision on all backends (cuda/musa/iluvatar read this flag).
+torch.backends.cuda.matmul.allow_tf32 = False
+
 
 def random_tensor(
     shape, dtype_name, device_name, device_id=0, scale=None, bias=None
@@ -188,6 +193,8 @@ def torch_device(device_name: str, device_id=0):
         return torch.device("cpu")
     elif device_name in ("nvidia", "iluvatar"):
         return torch.device(f"cuda:{device_id}")
+    elif device_name == "moore":
+        return torch.device(f"musa:{device_id}")
     else:
         raise ValueError(f"Unsupported device name: {device_name}")
 
@@ -199,6 +206,8 @@ def llaisys_device(device_name: str):
         return llaisys.DeviceType.NVIDIA
     elif device_name == "iluvatar":
         return llaisys.DeviceType.ILUVATAR
+    elif device_name == "moore":
+        return llaisys.DeviceType.MOORE
     else:
         raise ValueError(f"Unsupported device name: {device_name}")
 
@@ -210,6 +219,8 @@ def device_name(llaisys_device: llaisys.DeviceType):
         return "nvidia"
     elif llaisys_device == llaisys.DeviceType.ILUVATAR:
         return "iluvatar"
+    elif llaisys_device == llaisys.DeviceType.MOORE:
+        return "moore"
     else:
         raise ValueError(f"Unsupported llaisys device: {llaisys_device}")
 

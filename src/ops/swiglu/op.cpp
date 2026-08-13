@@ -13,6 +13,10 @@
 #include "iluvatar/swiglu_iluvatar.cuh"
 #endif
 
+#ifdef ENABLE_MOORE_API
+#include "moore/swiglu_moore.cuh"
+#endif
+
 namespace llaisys::ops {
 void swiglu(tensor_t out, tensor_t gate, tensor_t up) {
     CHECK_SAME_DEVICE(out, gate, up);
@@ -40,6 +44,10 @@ void swiglu(tensor_t out, tensor_t gate, tensor_t up) {
 #ifdef ENABLE_ILUVATAR_API
     case LLAISYS_DEVICE_ILUVATAR:
         return iluvatar::swiglu(out->data(), gate->data(), up->data(), out->dtype(), up->numel());
+#endif
+#ifdef ENABLE_MOORE_API
+    case LLAISYS_DEVICE_MOORE:
+        return moore::swiglu(out->data(), gate->data(), up->data(), out->dtype(), up->numel());
 #endif
     default:
         EXCEPTION_UNSUPPORTED_DEVICE;

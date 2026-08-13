@@ -28,6 +28,9 @@ namespace nvidia { DeviceResource *getDeviceResource(int device_id); }
 #ifdef ENABLE_ILUVATAR_API
 namespace iluvatar { DeviceResource *getDeviceResource(int device_id); }
 #endif
+#ifdef ENABLE_MOORE_API
+namespace moore { DeviceResource *getDeviceResource(int device_id); }
+#endif
 
 
 } // namespace llaisys::device

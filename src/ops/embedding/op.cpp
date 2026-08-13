@@ -13,6 +13,10 @@
 #include "iluvatar/embedding_iluvatar.cuh"
 #endif
 
+#ifdef ENABLE_MOORE_API
+#include "moore/embedding_moore.cuh"
+#endif
+
 
 namespace llaisys::ops {
 void embedding(tensor_t out, tensor_t index, tensor_t weight) {
@@ -41,6 +45,10 @@ void embedding(tensor_t out, tensor_t index, tensor_t weight) {
 #ifdef ENABLE_ILUVATAR_API
     case LLAISYS_DEVICE_ILUVATAR:
         return iluvatar::embedding(out->data(), index->data(), weight->data(), out->dtype(), out->shape()[0], weight->shape()[0], weight->shape()[1]);
+#endif
+#ifdef ENABLE_MOORE_API
+    case LLAISYS_DEVICE_MOORE:
+        return moore::embedding(out->data(), index->data(), weight->data(), out->dtype(), out->shape()[0], weight->shape()[0], weight->shape()[1]);
 #endif
     default:
         EXCEPTION_UNSUPPORTED_DEVICE;

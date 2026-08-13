@@ -7,7 +7,8 @@ class DeviceType(IntEnum):
     CPU = 0
     NVIDIA = 1
     ILUVATAR = 2
-    COUNT = 3
+    MOORE = 3
+    COUNT = 4
 
 
 llaisysDeviceType_t = ctypes.c_int

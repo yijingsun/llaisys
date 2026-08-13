@@ -1,6 +1,9 @@
 add_rules("mode.debug", "mode.release")
 set_encodings("utf-8")
 
+-- project-local xmake modules (e.g. moore/core/tools/mcc.lua for the MUSA toolchain)
+add_moduledirs("xmake/moore")
+
 add_includedirs("include")
 
 -- CPU --
@@ -30,6 +33,18 @@ if has_config("iluvatar-gpu") then
     includes("xmake/iluvatar.lua")
 end
 
+-- MOORE --
+option("moore-gpu")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Whether to compile implementations for Moore Threads GPU")
+option_end()
+
+if has_config("moore-gpu") then
+    add_defines("ENABLE_MOORE_API")
+    includes("xmake/moore.lua")
+end
+
 target("llaisys-utils")
     set_kind("static")
 
@@ -54,6 +69,9 @@ target("llaisys-device")
     end
     if has_config("iluvatar-gpu") then
         add_deps("llaisys-device-iluvatar")
+    end
+    if has_config("moore-gpu") then
+        add_deps("llaisys-device-moore")
     end
 
     set_languages("cxx17")
@@ -106,6 +124,9 @@ target("llaisys-ops")
     end
     if has_config("iluvatar-gpu") then
         add_deps("llaisys-ops-iluvatar")
+    end
+    if has_config("moore-gpu") then
+        add_deps("llaisys-ops-moore")
     end
 
     set_languages("cxx17")

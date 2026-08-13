@@ -13,6 +13,10 @@
 #include "iluvatar/rms_norm_iluvatar.cuh"
 #endif
 
+#ifdef ENABLE_MOORE_API
+#include "moore/rms_norm_moore.cuh"
+#endif
+
 namespace llaisys::ops {
 void rms_norm(tensor_t out, tensor_t in, tensor_t weight, float eps) {
     CHECK_SAME_DEVICE(out, in, weight);
@@ -47,6 +51,11 @@ void rms_norm(tensor_t out, tensor_t in, tensor_t weight, float eps) {
 #ifdef ENABLE_ILUVATAR_API
     case LLAISYS_DEVICE_ILUVATAR:
         return iluvatar::rms_norm(out->data(), in->data(), weight->data(), eps, out->dtype(),
+        in->shape()[0], in->shape()[1]);
+#endif
+#ifdef ENABLE_MOORE_API
+    case LLAISYS_DEVICE_MOORE:
+        return moore::rms_norm(out->data(), in->data(), weight->data(), eps, out->dtype(),
         in->shape()[0], in->shape()[1]);
 #endif
     default:
