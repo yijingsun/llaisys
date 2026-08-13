@@ -34,11 +34,15 @@ void KVCache::append(tensor_t new_k, tensor_t new_v) {
     CHECK_ARGUMENT(cur_len_ + ntoken <= k_cache_->shape()[0],
                    "KVCache::append: exceeds max sequence length");
 
-    // load cache to slice[cur_len_, cur_len_ + ntoken]
+    // copy new K/V into cache slice; on GPU both sides live in device memory,
+    // so a plain load() (H2D) would treat the device pointer as a host pointer.
+    size_t bytes = new_k->numel() * new_k->elementSize();
     auto k_slice = k_cache_->slice(0, cur_len_, cur_len_ + ntoken);
     auto v_slice = v_cache_->slice(0, cur_len_, cur_len_ + ntoken);
-    k_slice->load(new_k->data());
-    v_slice->load(new_v->data());
+    core::context().setDevice(k_cache_->deviceType(), k_cache_->deviceId());
+    auto &runtime = core::context().runtime();
+    runtime.api()->memcpy_sync(k_slice->data(), new_k->data(), bytes, LLAISYS_MEMCPY_D2D);
+    runtime.api()->memcpy_sync(v_slice->data(), new_v->data(), bytes, LLAISYS_MEMCPY_D2D);
 
     cur_len_ += ntoken;
 }

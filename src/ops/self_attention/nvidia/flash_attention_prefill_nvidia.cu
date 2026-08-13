@@ -51,6 +51,13 @@ __global__ void flash_attention_kernel(T *attn_val, const T *q, const T *k, cons
     float acc[4] = {0.0};
     for (int j = 0; j <= tile_max_limit; j += Bc) {
         // 协作搬运 K/V 进 shared memory，tile 内所有行共享。
+        // 先把整块清零：chunk 尾部超出 tile_max_limit 的行不会被写入，
+        // 若残留上一位使用者的 inf/NaN 位型，被掩码行 p=0 相乘时 0*inf 会得到 NaN。
+        for (size_t flat = threadIdx.x; flat < Bc * d; flat += blockDim.x) {
+            K_chunk[flat] = 0.0f;
+            V_chunk[flat] = 0.0f;
+        }
+        __syncthreads();
         for (size_t flat = threadIdx.x; flat < Bc * d; flat += blockDim.x) {
             size_t dim = flat % d;
             size_t row_in_chunk = flat / d;

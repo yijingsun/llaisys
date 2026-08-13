@@ -247,7 +247,7 @@ void Tensor::load(const void *src_) {
             src_,
             bytes,
             LLAISYS_MEMCPY_H2D);
-            core::context().runtime().api()->device_synchronize();
+        core::context().runtime().api()->device_synchronize();
     }
 }
 
