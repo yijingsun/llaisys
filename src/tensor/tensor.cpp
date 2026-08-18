@@ -172,7 +172,7 @@ bool Tensor::isContiguous() const {
     }
 
     ptrdiff_t expected_stride = 1;
-    for (int i = shape.size() - 1; i >= 0; i--) {
+    for (size_t i = shape.size(); i-- > 0;) {
         if (strides[i] != expected_stride) {
             return false;
         }
@@ -211,8 +211,8 @@ tensor_t Tensor::view(const std::vector<size_t> &shape) const {
         throw std::runtime_error("Tensor::view requires a contiguous tensor");
     }
     std::vector<ptrdiff_t> new_strides(shape.size());
-    size_t stride = 1;
-    for (int i = shape.size() - 1; i >= 0; --i) {
+    ptrdiff_t stride = 1;
+    for (size_t i = shape.size(); i-- > 0;) {
         new_strides[i] = stride;
         stride *= shape[i];
     }

@@ -21,7 +21,7 @@ void self_attention_(T *attn_val, const T *q, const T *k, const T *v, float scal
         }
     }
     for (size_t j = 0; j < nhead; j++) {
-        int head_idx = j * nkvhead / nhead;
+        size_t head_idx = j * nkvhead / nhead;
         for (size_t i = 0; i < seqlen; i++) {
             // Pass 1: compute all dot-product scores and find max for numerical stability
             std::vector<float> scores(total_len);
