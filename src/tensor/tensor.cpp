@@ -5,6 +5,7 @@
 #include <cstring>
 #include <numeric>
 #include <sstream>
+#include <string>
 
 namespace llaisys {
 
@@ -247,23 +248,107 @@ void Tensor::load(const void *src_) {
             src_,
             bytes,
             LLAISYS_MEMCPY_H2D);
-            core::context().runtime().api()->device_synchronize();
+        core::context().runtime().api()->device_synchronize();
     }
 }
 
 tensor_t Tensor::contiguous() const {
-    TO_BE_IMPLEMENTED();
-    return std::shared_ptr<Tensor>(new Tensor(_meta, _storage));
+    if (this->isContiguous()) {
+        return std::shared_ptr<Tensor>(new Tensor(_meta, _storage, _offset));
+    }
+    // create new tensor
+    const std::vector<size_t> &shape = this->shape();
+    tensor_t new_tensor = Tensor::create(shape, this->dtype(), this->deviceType(), this->deviceId());
+    
+    std::byte* dst_data = new_tensor->data();
+    size_t total = this->numel();
+    const std::vector<ptrdiff_t> &old_strides = this->strides();
+    const std::byte* src_data = this->data();
+    const size_t elementSize = this->elementSize();
+
+    // i = linear_idx = (i * dim[0] + j) * dim[1] + k for (i, j, k), only related to shape
+    for (size_t i = 0; i < total; i++) {
+        // compute offset from last dim
+        size_t offset = 0;
+        size_t remaining = i;
+        for (size_t dim = shape.size(); dim-- > 0;) {
+            const size_t dim_size = shape[dim];
+            const size_t coord = remaining % dim_size;   // coor for this dim
+            remaining /= dim_size;
+            offset += coord * static_cast<size_t>(old_strides[dim]);
+        }
+        // copy element i
+        std::memcpy(dst_data + i * elementSize, 
+            src_data + offset * elementSize, 
+            elementSize);
+    }
+
+    return new_tensor;
 }
 
 tensor_t Tensor::reshape(const std::vector<size_t> &shape) const {
-    TO_BE_IMPLEMENTED();
-    return std::shared_ptr<Tensor>(new Tensor(_meta, _storage));
+    size_t numel = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
+    if (numel != this->numel()) {
+        throw std::runtime_error("reshape: total elements mismatch");
+    }
+    try {
+        // if contiguous then view success
+        return this->view(shape);
+    } catch (const std::runtime_error& e) {
+        // if not contiguous then create a contiguous tensor and view(shape)
+        if (std::string(e.what()).find("Tensor::view") == 0) {
+            auto contiguous_tensor = this->contiguous();
+            return contiguous_tensor->view(shape);
+        }
+        throw;
+    }
 }
 
 tensor_t Tensor::to(llaisysDeviceType_t device_type, int device) const {
-    TO_BE_IMPLEMENTED();
-    return std::shared_ptr<Tensor>(new Tensor(_meta, _storage));
+    if (this->deviceType() == device_type && this->deviceId() == device) {
+        return std::shared_ptr<Tensor>(new Tensor(_meta, _storage, _offset));
+    }
+    tensor_t src = this->contiguous();
+    size_t bytes = src->numel() * src->elementSize();
+    core::storage_t new_storage;
+
+    // allocate storage
+    if (device_type == LLAISYS_DEVICE_CPU) {
+        new_storage = core::context().runtime().allocateHostStorage(bytes);
+    } else {
+        core::context().setDevice(device_type, device);
+        new_storage = core::context().runtime().allocateDeviceStorage(bytes);
+    }
+
+    if (src->deviceType() == LLAISYS_DEVICE_CPU && device_type == LLAISYS_DEVICE_CPU) {
+        // cpu to cpu
+        std::memcpy(new_storage->memory(), src->data(), bytes);
+    } else if (src->deviceType() == LLAISYS_DEVICE_CPU && device_type != LLAISYS_DEVICE_CPU) {
+        // cpu to device
+        core::context().runtime().api()->memcpy_sync(
+            new_storage->memory(),
+            src->data(),
+            bytes,
+            LLAISYS_MEMCPY_H2D);
+        core::context().runtime().api()->device_synchronize();
+    } else if (src->deviceType() != LLAISYS_DEVICE_CPU && device_type == LLAISYS_DEVICE_CPU) {
+        // device to cpu
+        core::context().runtime().api()->memcpy_sync(
+            new_storage->memory(),
+            src->data(),
+            bytes,
+            LLAISYS_MEMCPY_D2H);
+        core::context().runtime().api()->device_synchronize();
+    } else {
+        // device to device
+        core::context().runtime().api()->memcpy_sync(
+            new_storage->memory(),
+            src->data(),
+            bytes,
+            LLAISYS_MEMCPY_D2D);
+        core::context().runtime().api()->device_synchronize();
+    }
+    return std::shared_ptr<Tensor>(new Tensor(src->_meta, new_storage, 0));
 }
 
 } // namespace llaisys
