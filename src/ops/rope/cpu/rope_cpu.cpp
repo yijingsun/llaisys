@@ -11,7 +11,7 @@ void rope_(T *out, const T *in, const int64_t *pos_ids, float theta, size_t seql
         for (size_t h = 0; h < nhead; h++) {
             for (size_t j = 0; j < d / 2; j++) {
                 size_t idx = i * nhead * d + h * d + j;
-                float angle = pos_ids[i] / std::pow(theta, 2.0f * j / d);
+                float angle = static_cast<float>(pos_ids[i]) / std::pow(theta, 2.0f * static_cast<float>(j) / static_cast<float>(d)); // avoid MSVC C4244 under /WX
                 float cos_angle = std::cos(angle);
                 float sin_angle = std::sin(angle);
                 if constexpr (std::is_same_v<T, llaisys::bf16_t> || std::is_same_v<T, llaisys::fp16_t>) {
