@@ -48,6 +48,35 @@ def test_tensor():
     assert llaisys_tensor.is_contiguous() == torch_tensor.is_contiguous()
     assert check_equal(llaisys_tensor_slice, torch_tensor_slice)
 
+    # Test contiguous
+    print("===Test contiguous===")
+    torch_tensor_contiguous = torch_tensor_perm.contiguous()
+    llaisys_tensor_contiguous = llaisys_tensor_perm.contiguous()
+    llaisys_tensor_contiguous.debug()
+    assert llaisys_tensor_contiguous.is_contiguous()
+    assert llaisys_tensor_contiguous.shape() == torch_tensor_contiguous.shape
+    assert llaisys_tensor_contiguous.strides() == torch_tensor_contiguous.stride()
+    assert check_equal(llaisys_tensor_contiguous, torch_tensor_contiguous)
+
+    # Test reshape on a non-contiguous tensor
+    print("===Test reshape===")
+    torch_tensor_reshape = torch_tensor_perm.reshape(2, 30)
+    llaisys_tensor_reshape = llaisys_tensor_perm.reshape(2, 30)
+    llaisys_tensor_reshape.debug()
+    assert llaisys_tensor_reshape.shape() == torch_tensor_reshape.shape
+    assert llaisys_tensor_reshape.strides() == torch_tensor_reshape.stride()
+    assert llaisys_tensor_reshape.is_contiguous()
+    assert check_equal(llaisys_tensor_reshape, torch_tensor_reshape)
+
+    # Test CPU to CPU copy
+    print("===Test to===")
+    torch_tensor_cpu = torch_tensor.to("cpu")
+    llaisys_tensor_cpu = llaisys_tensor.to(llaisys_device("cpu"))
+    llaisys_tensor_cpu.debug()
+    assert llaisys_tensor_cpu.device_type() == llaisys_device("cpu")
+    assert llaisys_tensor_cpu.shape() == torch_tensor_cpu.shape
+    assert llaisys_tensor_cpu.strides() == torch_tensor_cpu.stride()
+    assert check_equal(llaisys_tensor_cpu, torch_tensor_cpu)
 
 if __name__ == "__main__":
     test_tensor()
