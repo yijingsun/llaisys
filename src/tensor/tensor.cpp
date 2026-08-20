@@ -234,8 +234,8 @@ tensor_t Tensor::slice(size_t dim, size_t start, size_t end) const {
     TensorMeta new_meta = _meta; // Copy the existing meta
     new_meta.shape[dim] = end - start;
     size_t new_offset = _offset + start * _meta.strides[dim] * this->elementSize(); // slice causes offset change; new offset = old offset + start * stride[dim] * element size;
-    new_meta.strides[dim] = _meta.strides[dim]; // The stride remains the same for the sliced dimension
-    return std::shared_ptr<Tensor>(new Tensor(new_meta, _storage, new_offset)); // 
+    new_meta.strides[dim] = _meta.strides[dim];                                     // The stride remains the same for the sliced dimension
+    return std::shared_ptr<Tensor>(new Tensor(new_meta, _storage, new_offset));     //
 }
 
 void Tensor::load(const void *src_) {
@@ -259,11 +259,11 @@ tensor_t Tensor::contiguous() const {
     // create new tensor
     const std::vector<size_t> &shape = this->shape();
     tensor_t new_tensor = Tensor::create(shape, this->dtype(), this->deviceType(), this->deviceId());
-    
-    std::byte* dst_data = new_tensor->data();
+
+    std::byte *dst_data = new_tensor->data();
     size_t total = this->numel();
     const std::vector<ptrdiff_t> &old_strides = this->strides();
-    const std::byte* src_data = this->data();
+    const std::byte *src_data = this->data();
     const size_t elementSize = this->elementSize();
 
     // i = linear_idx = (i * dim[0] + j) * dim[1] + k for (i, j, k), only related to shape
@@ -273,14 +273,14 @@ tensor_t Tensor::contiguous() const {
         size_t remaining = i;
         for (size_t dim = shape.size(); dim-- > 0;) {
             const size_t dim_size = shape[dim];
-            const size_t coord = remaining % dim_size;   // coor for this dim
+            const size_t coord = remaining % dim_size; // coor for this dim
             remaining /= dim_size;
             offset += coord * static_cast<size_t>(old_strides[dim]);
         }
         // copy element i
-        std::memcpy(dst_data + i * elementSize, 
-            src_data + offset * elementSize, 
-            elementSize);
+        std::memcpy(dst_data + i * elementSize,
+                    src_data + offset * elementSize,
+                    elementSize);
     }
 
     return new_tensor;
@@ -294,7 +294,7 @@ tensor_t Tensor::reshape(const std::vector<size_t> &shape) const {
     try {
         // if contiguous then view success
         return this->view(shape);
-    } catch (const std::runtime_error& e) {
+    } catch (const std::runtime_error &e) {
         // if not contiguous then create a contiguous tensor and view(shape)
         if (std::string(e.what()).find("Tensor::view") == 0) {
             auto contiguous_tensor = this->contiguous();

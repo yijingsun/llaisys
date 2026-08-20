@@ -1,17 +1,17 @@
 #include "model.hpp"
 
-#include "../../ops/embedding/op.hpp"
-#include "../../ops/rms_norm/op.hpp"
-#include "../../ops/linear/op.hpp"
-#include "../../ops/self_attention/op.hpp"
-#include "../../ops/rope/op.hpp"
 #include "../../ops/add/op.hpp"
-#include "../../ops/swiglu/op.hpp"
 #include "../../ops/argmax/op.hpp"
+#include "../../ops/embedding/op.hpp"
+#include "../../ops/linear/op.hpp"
+#include "../../ops/rms_norm/op.hpp"
+#include "../../ops/rope/op.hpp"
+#include "../../ops/self_attention/op.hpp"
+#include "../../ops/swiglu/op.hpp"
 
 #include <cmath>
-#include <numeric>
 #include <cstring>
+#include <numeric>
 #include <string> // std::stoi
 
 namespace llaisys::models::qwen2 {
@@ -49,7 +49,7 @@ model_t Model::create_model(
     const int device_id = select_device_id(device_type, device_ids, ndevice);
 
     ModelWeights weights;
-    
+
     // global weights
     weights.in_embed = Tensor::create({meta.vocab_size, meta.hidden_size}, meta.dtype, device_type, device_id);
     weights.out_embed = Tensor::create({meta.vocab_size, meta.hidden_size}, meta.dtype, device_type, device_id);
@@ -59,7 +59,7 @@ model_t Model::create_model(
     weights.layers.resize(meta.nlayer);
     for (size_t layer_idx = 0; layer_idx < meta.nlayer; ++layer_idx) {
         auto &layer = weights.layers[layer_idx];
-        
+
         size_t d_kv = meta.nkvhead * (meta.hidden_size / meta.nhead);
 
         // attention weights
@@ -75,10 +75,10 @@ model_t Model::create_model(
         layer.attn_v_b = Tensor::create({d_kv}, meta.dtype, device_type, device_id);
 
         layer.attn_o_w = Tensor::create({meta.hidden_size, meta.hidden_size}, meta.dtype, device_type, device_id);
-        
+
         // mlp weights
         layer.mlp_norm_w = Tensor::create({meta.hidden_size}, meta.dtype, device_type, device_id);
-        
+
         layer.mlp_gate_w = Tensor::create({meta.d_intermediate, meta.hidden_size}, meta.dtype, device_type, device_id);
         layer.mlp_up_w = Tensor::create({meta.d_intermediate, meta.hidden_size}, meta.dtype, device_type, device_id);
         layer.mlp_down_w = Tensor::create({meta.hidden_size, meta.d_intermediate}, meta.dtype, device_type, device_id);
@@ -144,8 +144,8 @@ int64_t infer(model_t model, int64_t *token_ids, size_t ntoken) {
         return infer_use_cache_(model, token_ids, ntoken);
     }
 
-    const auto& model_weights = model->weights();
-    const auto& meta = model->meta();
+    const auto &model_weights = model->weights();
+    const auto &meta = model->meta();
 
     tensor_t token_index = get_token_index_(model_weights.in_embed, token_ids, ntoken);
     tensor_t input = apply_embedding_(token_index, model_weights.in_embed);
@@ -155,7 +155,7 @@ int64_t infer(model_t model, int64_t *token_ids, size_t ntoken) {
     tensor_t layer_input = input;
     for (size_t i_layer = 0; i_layer < nlayer; i_layer++) {
         // attention block
-        const auto& layer_weights = model_weights.get_layer(i_layer);
+        const auto &layer_weights = model_weights.get_layer(i_layer);
         tensor_t attn_norm = apply_rms_norm_(layer_input, layer_weights.attn_norm_w, meta.rms_epsilon);
         tensor_t attn_q = apply_linear_(attn_norm, layer_weights.attn_q_w, layer_weights.attn_q_b);
         tensor_t attn_k = apply_linear_(attn_norm, layer_weights.attn_k_w, layer_weights.attn_k_b);
@@ -173,7 +173,7 @@ int64_t infer(model_t model, int64_t *token_ids, size_t ntoken) {
         float scale = 1.0f / std::sqrt(static_cast<float>(dhead)); // avoid C4244 (double -> float) under MSVC /WX
         tensor_t attn_val = compute_self_attention_(rope_q, rope_k, head_v, scale);
         // attention output projection
-        tensor_t attn_proj = apply_linear_(attn_val->view(layer_input->shape()), layer_weights.attn_o_w, nullptr); 
+        tensor_t attn_proj = apply_linear_(attn_val->view(layer_input->shape()), layer_weights.attn_o_w, nullptr);
         // add residual
         tensor_t attn_out = apply_add_(layer_input, attn_proj);
 
@@ -188,7 +188,7 @@ int64_t infer(model_t model, int64_t *token_ids, size_t ntoken) {
 
         // add residual
         tensor_t layer_out = apply_add_(attn_out, mlp_out);
-        
+
         // next layer
         layer_input = layer_out;
         // std::cout << "layer " << i_layer << "done" << std::endl; // debug
@@ -205,16 +205,14 @@ int64_t infer(model_t model, int64_t *token_ids, size_t ntoken) {
     tensor_t max_val = Tensor::create({1}, last_logits->dtype(), last_logits->deviceType(), last_logits->deviceId());
     llaisys::ops::argmax(max_idx, max_val, last_logits);
 
-    auto* data = reinterpret_cast<int64_t*>(max_idx->data());
+    auto *data = reinterpret_cast<int64_t *>(max_idx->data());
     int64_t next_token_id = data[0];
-
 
     // sample
     // temperature
     // top k
     // top p
-    
-    
+
     return next_token_id;
 }
 
@@ -222,7 +220,6 @@ tensor_t apply_swiglu_(tensor_t gate, tensor_t up) {
     tensor_t out = Tensor::create(gate->shape(), gate->dtype(), gate->deviceType(), gate->deviceId());
     llaisys::ops::swiglu(out, gate, up);
     return out;
-
 }
 
 tensor_t apply_add_(tensor_t a, tensor_t b) {
@@ -263,8 +260,8 @@ tensor_t apply_embedding_(tensor_t token_index, tensor_t in_embed) {
 
 static tensor_t make_pos_ids_(size_t start, size_t len, llaisysDeviceType_t dev, int id) {
     auto t = Tensor::create({len}, LLAISYS_DTYPE_I64, dev, id);
-    auto* d = reinterpret_cast<int64_t*>(t->data());
-    for (size_t i = 0; i< len; i++) {
+    auto *d = reinterpret_cast<int64_t *>(t->data());
+    for (size_t i = 0; i < len; i++) {
         d[i] = static_cast<int64_t>(start + i);
     }
     return t;
@@ -280,15 +277,15 @@ int64_t infer_use_cache_(model_t model, int64_t *token_ids, size_t ntoken) {
         return -1;
     }
 
-    const auto& model_weights = model->weights();
-    const auto& meta = model->meta();
-    auto& kv_caches = model->kv_caches();
+    const auto &model_weights = model->weights();
+    const auto &meta = model->meta();
+    auto &kv_caches = model->kv_caches();
 
     // Determine past_len from cache (0 for prefill, >0 for decode)
     size_t past_len = kv_caches.empty() ? 0 : kv_caches[0].curLen();
 
     // Prefill: process all tokens; Decode: only process the last token
-    int64_t* current_ids = token_ids;
+    int64_t *current_ids = token_ids;
     size_t current_ntoken = ntoken;
     if (past_len > 0) {
         current_ids = &token_ids[ntoken - 1];
@@ -303,8 +300,8 @@ int64_t infer_use_cache_(model_t model, int64_t *token_ids, size_t ntoken) {
     size_t nlayer = meta.nlayer;
     tensor_t layer_input = input;
     for (size_t i_layer = 0; i_layer < nlayer; i_layer++) {
-        const auto& layer_weights = model_weights.get_layer(i_layer);
-        auto& kv_cache = kv_caches[i_layer];
+        const auto &layer_weights = model_weights.get_layer(i_layer);
+        auto &kv_cache = kv_caches[i_layer];
 
         // Attention block
         tensor_t attn_norm = apply_rms_norm_(layer_input, layer_weights.attn_norm_w, meta.rms_epsilon);
@@ -364,49 +361,83 @@ int64_t infer_use_cache_(model_t model, int64_t *token_ids, size_t ntoken) {
     tensor_t max_val = Tensor::create({1}, last_logits->dtype(), last_logits->deviceType(), last_logits->deviceId());
     llaisys::ops::argmax(max_idx, max_val, last_logits);
 
-    auto* data = reinterpret_cast<int64_t*>(max_idx->data());
+    auto *data = reinterpret_cast<int64_t *>(max_idx->data());
     return data[0];
 }
 
 tensor_t get_tensor_by_name_(const ModelWeights &weights, const std::string &name) {
     // Global weights
-    if (name == "model.embed_tokens.weight") return weights.in_embed;
-    if (name == "model.norm.weight") return weights.out_norm_w;
-    if (name == "lm_head.weight") return weights.out_embed;
-    
+    if (name == "model.embed_tokens.weight") {
+        return weights.in_embed;
+    }
+    if (name == "model.norm.weight") {
+        return weights.out_norm_w;
+    }
+    if (name == "lm_head.weight") {
+        return weights.out_embed;
+    }
+
     // Layer weights: "model.layers.{idx}.{field}"
     const std::string prefix = "model.layers.";
     if (name.find(prefix) == 0) {
         size_t idx_start = prefix.length();
         size_t idx_end = name.find('.', idx_start);
-        if (idx_end == std::string::npos) return nullptr;
-        
+        if (idx_end == std::string::npos) {
+            return nullptr;
+        }
+
         int layer_idx = std::stoi(name.substr(idx_start, idx_end - idx_start));
-        if (layer_idx < 0 || layer_idx >= (int)weights.layers.size()) return nullptr;
-        
+        if (layer_idx < 0 || layer_idx >= (int)weights.layers.size()) {
+            return nullptr;
+        }
+
         const auto &layer = weights.layers[layer_idx];
         std::string field = name.substr(idx_end + 1);
-        
-        if (field == "input_layernorm.weight") return layer.attn_norm_w;
 
-        if (field == "self_attn.q_proj.weight") return layer.attn_q_w;
-        if (field == "self_attn.q_proj.bias") return layer.attn_q_b;
+        if (field == "input_layernorm.weight") {
+            return layer.attn_norm_w;
+        }
 
-        if (field == "self_attn.k_proj.weight") return layer.attn_k_w;
-        if (field == "self_attn.k_proj.bias") return layer.attn_k_b;
+        if (field == "self_attn.q_proj.weight") {
+            return layer.attn_q_w;
+        }
+        if (field == "self_attn.q_proj.bias") {
+            return layer.attn_q_b;
+        }
 
-        if (field == "self_attn.v_proj.weight") return layer.attn_v_w;
-        if (field == "self_attn.v_proj.bias") return layer.attn_v_b;
+        if (field == "self_attn.k_proj.weight") {
+            return layer.attn_k_w;
+        }
+        if (field == "self_attn.k_proj.bias") {
+            return layer.attn_k_b;
+        }
 
-        if (field == "post_attention_layernorm.weight") return layer.mlp_norm_w;
+        if (field == "self_attn.v_proj.weight") {
+            return layer.attn_v_w;
+        }
+        if (field == "self_attn.v_proj.bias") {
+            return layer.attn_v_b;
+        }
 
-        if (field == "self_attn.o_proj.weight") return layer.attn_o_w;
+        if (field == "post_attention_layernorm.weight") {
+            return layer.mlp_norm_w;
+        }
 
-        if (field == "mlp.gate_proj.weight") return layer.mlp_gate_w;
-        if (field == "mlp.up_proj.weight") return layer.mlp_up_w;
-        if (field == "mlp.down_proj.weight") return layer.mlp_down_w;
+        if (field == "self_attn.o_proj.weight") {
+            return layer.attn_o_w;
+        }
+
+        if (field == "mlp.gate_proj.weight") {
+            return layer.mlp_gate_w;
+        }
+        if (field == "mlp.up_proj.weight") {
+            return layer.mlp_up_w;
+        }
+        if (field == "mlp.down_proj.weight") {
+            return layer.mlp_down_w;
+        }
     }
-    
+
     return nullptr;
 }
 

@@ -18,12 +18,11 @@ void rope(tensor_t out, tensor_t in, tensor_t pos_ids, float theta) {
     CHECK_ARGUMENT(out->shape() == in->shape(), "rope: output tensor's shape must match input tensor's shape.");
     CHECK_ARGUMENT(pos_ids->shape()[0] == in->shape()[0], "rope: position IDs tensor's first dimension must match input tensor's first dimension.");
     CHECK_ARGUMENT(in->shape()[2] % 2 == 0, "rope: input tensor's last dimension must be even.");
-    
 
     // always support cpu calculation
     if (out->deviceType() == LLAISYS_DEVICE_CPU) {
         return cpu::rope(out->data(), in->data(), pos_ids->data(), theta, out->dtype(),
-        in->shape()[0], in->shape()[1], in->shape()[2]);
+                         in->shape()[0], in->shape()[1], in->shape()[2]);
     }
 
     llaisys::core::context().setDevice(out->deviceType(), out->deviceId());
@@ -31,7 +30,7 @@ void rope(tensor_t out, tensor_t in, tensor_t pos_ids, float theta) {
     switch (out->deviceType()) {
     case LLAISYS_DEVICE_CPU:
         return cpu::rope(out->data(), in->data(), pos_ids->data(), theta, out->dtype(),
-        in->shape()[0], in->shape()[1], in->shape()[2]);
+                         in->shape()[0], in->shape()[1], in->shape()[2]);
 #ifdef ENABLE_NVIDIA_API
     case LLAISYS_DEVICE_NVIDIA:
         TO_BE_IMPLEMENTED();

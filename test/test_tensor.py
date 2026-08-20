@@ -78,6 +78,7 @@ def test_tensor():
     assert llaisys_tensor_cpu.strides() == torch_tensor_cpu.stride()
     assert check_equal(llaisys_tensor_cpu, torch_tensor_cpu)
 
+
 if __name__ == "__main__":
     test_tensor()
 

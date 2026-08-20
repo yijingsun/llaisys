@@ -12,7 +12,7 @@ void swiglu(tensor_t out, tensor_t gate, tensor_t up) {
     ASSERT(out->isContiguous() && gate->isContiguous() && up->isContiguous(), "SwiGLU: all tensors must be contiguous.");
     CHECK_SAME_DTYPE(out->dtype(), gate->dtype(), up->dtype());
 
-    // out, gate, up [seqlen, intermediate_size] 
+    // out, gate, up [seqlen, intermediate_size]
     CHECK_ARGUMENT(gate->shape() == up->shape() && out->shape() == gate->shape(), "SwiGLU: gate and up tensors must have the same shape.");
     // always support cpu calculation
     if (out->deviceType() == LLAISYS_DEVICE_CPU) {

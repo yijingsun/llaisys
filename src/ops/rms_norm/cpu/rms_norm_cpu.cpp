@@ -22,7 +22,7 @@ void rms_norm_(T *out, const T *in, const T *weight, float eps, size_t batch_siz
 
         for (size_t j = 0; j < in_features; j++) {
             float result = 0.0f;
-            
+
             if constexpr (std::is_same_v<T, llaisys::bf16_t> || std::is_same_v<T, llaisys::fp16_t>) {
                 result = llaisys::utils::cast<float>(in[i * in_features + j]) * llaisys::utils::cast<float>(weight[j]) / rms;
             } else {
@@ -50,5 +50,5 @@ void rms_norm(std::byte *out, const std::byte *in, const std::byte *weight, floa
     default:
         EXCEPTION_UNSUPPORTED_DATATYPE(type);
     }
-}   
+}
 } // namespace llaisys::ops::cpu

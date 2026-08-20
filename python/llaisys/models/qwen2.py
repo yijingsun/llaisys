@@ -49,11 +49,15 @@ class Qwen2:
     ) -> List[int]:
         tokens = list(inputs)
         max_seqlen = self.config["max_position_embeddings"]
-        max_new_tokens = max_new_tokens if max_new_tokens is not None else (max_seqlen - len(tokens))
+        max_new_tokens = (
+            max_new_tokens if max_new_tokens is not None else (max_seqlen - len(tokens))
+        )
         eos_token_id = self.config["eos_token_id"]
         for i in range(max_new_tokens):
             c_inputs = (ctypes.c_int64 * len(tokens))(*tokens)
-            token_id = LIB_LLAISYS.llaisysQwen2ModelInfer(self._model, c_inputs, len(tokens))
+            token_id = LIB_LLAISYS.llaisysQwen2ModelInfer(
+                self._model, c_inputs, len(tokens)
+            )
             tokens.append(token_id)
             if token_id == eos_token_id:
                 break
@@ -61,7 +65,7 @@ class Qwen2:
         return tokens
 
     def __del__(self):
-        if hasattr(self, '_model') and self._model:
+        if hasattr(self, "_model") and self._model:
             LIB_LLAISYS.llaisysQwen2ModelDestroy(self._model)
 
     def _prepare_meta(self):

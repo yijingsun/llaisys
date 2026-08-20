@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../../tensor/tensor.hpp"
 #include "../../core/llaisys_core.hpp"
+#include "../../tensor/tensor.hpp"
 #include "../kv_cache.hpp"
 
-#include <vector>
 #include <memory>
+#include <vector>
 
 namespace llaisys::models::qwen2 {
 class Model;
@@ -32,7 +32,7 @@ struct ModelWeights {
     tensor_t out_embed;
     tensor_t out_norm_w;
     std::vector<LayerWeights> layers;
-    
+
     size_t num_layers() const { return layers.size(); }
     const LayerWeights &get_layer(size_t idx) const {
         if (idx >= layers.size()) {

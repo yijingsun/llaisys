@@ -37,7 +37,7 @@ void linear_(T *out, const T *in, const T *weight, const T *bias, size_t batch_s
 }
 
 namespace llaisys::ops::cpu {
-void linear(std::byte *out, const std::byte *in, const std::byte *weight, const std::byte *bias, llaisysDataType_t type, size_t batch_size, size_t in_features, size_t out_features) {    
+void linear(std::byte *out, const std::byte *in, const std::byte *weight, const std::byte *bias, llaisysDataType_t type, size_t batch_size, size_t in_features, size_t out_features) {
     switch (type) {
     case LLAISYS_DTYPE_F32:
         return linear_(reinterpret_cast<float *>(out), reinterpret_cast<const float *>(in), reinterpret_cast<const float *>(weight), reinterpret_cast<const float *>(bias), batch_size, in_features, out_features);

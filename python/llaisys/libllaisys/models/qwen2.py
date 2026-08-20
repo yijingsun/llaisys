@@ -20,6 +20,7 @@ from ..llaisys_types import (
     DeviceType,
 )
 
+
 # -------------------------
 # 1) mirror C struct layout
 # -------------------------
@@ -50,6 +51,7 @@ class llaisysQwen2Meta(Structure):
 llaisysQwen2Model_t = c_void_p
 llaisysQwen2Weights_t = c_void_p
 
+
 # -------------------------
 # 2) bind C functions
 # -------------------------
@@ -71,7 +73,9 @@ def load_qwen2(lib):
         c_void_p,
         c_size_t,
     ]
-    lib.llaisysQwen2ModelLoadWeights.restype = c_int  # Return an int to indicate success or failure
+    lib.llaisysQwen2ModelLoadWeights.restype = (
+        c_int  # Return an int to indicate success or failure
+    )
 
     lib.llaisysQwen2ModelInfer.argtypes = [
         llaisysQwen2Model_t,

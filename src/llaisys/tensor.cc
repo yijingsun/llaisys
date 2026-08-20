@@ -113,5 +113,4 @@ __C {
         int device_id) {
         return new LlaisysTensor{tensor->tensor->to(device_type, device_id)};
     }
-
 }

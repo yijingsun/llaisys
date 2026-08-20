@@ -21,7 +21,7 @@ def test_op_argmax(
 ):
     print(f"   shape {shape} dtype <{dtype_name}>")
     vals, vals_ = random_tensor(shape, dtype_name, device_name)
-    max_idx, max_idx_ = zero_tensor((1,), "i64", device_name) # dtype of max_idx is i64
+    max_idx, max_idx_ = zero_tensor((1,), "i64", device_name)  # dtype of max_idx is i64
     max_val, max_val_ = zero_tensor((1,), dtype_name, device_name)
 
     torch_argmax(max_idx, max_val, vals)

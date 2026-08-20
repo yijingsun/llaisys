@@ -6,7 +6,7 @@
 
 template <typename T>
 void rope_(T *out, const T *in, const int64_t *pos_ids, float theta, size_t seqlen, size_t nhead, size_t d) {
-    
+
     for (size_t i = 0; i < seqlen; i++) {
         for (size_t h = 0; h < nhead; h++) {
             for (size_t j = 0; j < d / 2; j++) {
@@ -26,7 +26,6 @@ void rope_(T *out, const T *in, const int64_t *pos_ids, float theta, size_t seql
             }
         }
     }
-    
 }
 
 namespace llaisys::ops::cpu {

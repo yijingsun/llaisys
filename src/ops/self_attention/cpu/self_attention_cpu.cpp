@@ -10,7 +10,7 @@ template <typename T>
 void self_attention_(T *attn_val, const T *q, const T *k, const T *v, float scale, size_t seqlen, size_t nhead, size_t d, size_t total_len, size_t nkvhead, size_t dv) {
     // mask[i][j] = -inf if j > total_len - seqlen + i else 0
     std::vector<float> mask_data(seqlen * total_len);
-    auto mask = [&](size_t i, size_t j) -> float& { return mask_data[i * total_len + j]; };
+    auto mask = [&](size_t i, size_t j) -> float & { return mask_data[i * total_len + j]; };
     for (size_t i = 0; i < seqlen; i++) {
         for (size_t j = 0; j < total_len; j++) {
             if (j > total_len - seqlen + i) {
@@ -70,7 +70,7 @@ void self_attention_(T *attn_val, const T *q, const T *k, const T *v, float scal
 }
 
 namespace llaisys::ops::cpu {
-void self_attention(std::byte* attn_val, const std::byte* q, const std::byte* k, const std::byte* v, float scale, llaisysDataType_t type,
+void self_attention(std::byte *attn_val, const std::byte *q, const std::byte *k, const std::byte *v, float scale, llaisysDataType_t type,
                     size_t seqlen, size_t nhead, size_t d, size_t total_len, size_t nkvhead, size_t dv) {
     switch (type) {
     case LLAISYS_DTYPE_F32:

@@ -1,7 +1,7 @@
 #include "llaisys/models/qwen2.h"
 
-#include "../llaisys_tensor.hpp"
 #include "../llaisys_models.hpp"
+#include "../llaisys_tensor.hpp"
 
 __C {
     LlaisysQwen2Model *llaisysQwen2ModelCreate(
@@ -29,14 +29,14 @@ __C {
         return model;
     }
 
-    void llaisysQwen2ModelDestroy(LlaisysQwen2Model *model) {
+    void llaisysQwen2ModelDestroy(LlaisysQwen2Model * model) {
         if (!model) {
             return;
         }
         delete model;
     }
 
-    struct LlaisysQwen2Weights *llaisysQwen2ModelWeights(LlaisysQwen2Model *model) {
+    struct LlaisysQwen2Weights *llaisysQwen2ModelWeights(LlaisysQwen2Model * model) {
         if (!model || !model->model) {
             return nullptr;
         }
@@ -45,20 +45,20 @@ __C {
         return out;
     }
 
-    int llaisysQwen2ModelLoadWeights(LlaisysQwen2Model *model, const char *name, const void *data, size_t numel) {
+    int llaisysQwen2ModelLoadWeights(LlaisysQwen2Model * model, const char *name, const void *data, size_t numel) {
         if (!model || !model->model || !name || !data) {
             return -1;
         }
         try {
             llaisys::models::qwen2::loadWeights(model->model, name, data, numel);
-        } catch(const std::exception& e) {
+        } catch (const std::exception &e) {
             printf("Error loading weights: %s\n", e.what());
             return -1; // Return an error code if an exception occurs
         }
         return 0;
     }
 
-    int64_t llaisysQwen2ModelInfer(LlaisysQwen2Model *model, int64_t *token_ids, size_t ntoken) {
+    int64_t llaisysQwen2ModelInfer(LlaisysQwen2Model * model, int64_t * token_ids, size_t ntoken) {
         if (!model) {
             return 0;
         }
