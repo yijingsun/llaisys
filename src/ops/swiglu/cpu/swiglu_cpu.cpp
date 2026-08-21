@@ -7,7 +7,8 @@
 template <typename T>
 void swiglu_(T *out, const T *gate, const T *up, size_t numel) {
     // SwiGLU : out = up * sigmoid(gate) = up * (gate / (1 + exp(-gate)))
-    for (size_t i = 0; i < numel; i++) {
+    #pragma omp parallel for
+    for (int64_t i = 0; i < static_cast<int64_t>(numel); i++) {
         if constexpr (std::is_same_v<T, llaisys::bf16_t> || std::is_same_v<T, llaisys::fp16_t>) {
             float up_val = llaisys::utils::cast<float>(up[i]);
             float gate_val = llaisys::utils::cast<float>(gate[i]);

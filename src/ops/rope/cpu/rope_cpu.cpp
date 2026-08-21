@@ -6,8 +6,8 @@
 
 template <typename T>
 void rope_(T *out, const T *in, const int64_t *pos_ids, float theta, size_t seqlen, size_t nhead, size_t d) {
-
-    for (size_t i = 0; i < seqlen; i++) {
+    #pragma omp parallel for
+    for (int64_t i = 0; i < static_cast<int64_t>(seqlen); i++) {
         for (size_t h = 0; h < nhead; h++) {
             for (size_t j = 0; j < d / 2; j++) {
                 size_t idx = i * nhead * d + h * d + j;

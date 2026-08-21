@@ -4,5 +4,5 @@
 #include <cstddef>
 
 namespace llaisys::ops::cpu {
-void embedding(std::byte *out, const std::byte *index, const std::byte *weight, llaisysDataType_t type, size_t line_num, size_t vocab_size, size_t embedding_dim);
+void embedding(std::byte *out, const std::byte *index, const std::byte *weight, llaisysDataType_t type, size_t seqlen, size_t vocab_size, size_t embedding_dim);
 }

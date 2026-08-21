@@ -6,22 +6,35 @@
 
 template <typename T>
 void argmax_(int64_t *max_idx, T *max_val, const T *vals, size_t numel) {
-    size_t max_index = 0;
+    int64_t max_index = 0;
     float max_value = std::numeric_limits<float>::lowest();
-    for (size_t i = 0; i < numel; i++) {
-        float val;
-        if constexpr (std::is_same_v<T, llaisys::bf16_t> || std::is_same_v<T, llaisys::fp16_t>) {
-            val = llaisys::utils::cast<float>(vals[i]);
-        } else {
-            val = vals[i];
+    #pragma omp parallel
+    {
+        int64_t local_index = 0; // local argmax
+        float local_max = std::numeric_limits<float>::lowest();
+        
+        #pragma omp for nowait
+        for (int64_t i = 0; i < static_cast<int64_t>(numel); i++) {
+            float val;
+            if constexpr (std::is_same_v<T, llaisys::bf16_t> || std::is_same_v<T, llaisys::fp16_t>) {
+                val = llaisys::utils::cast<float>(vals[i]);
+            } else {
+                val = vals[i];
+            }
+            if (val > local_max) {
+                local_max = val;
+                local_index= i;
+            }
         }
-        if (val > max_value) {
-            max_value = val;
-            max_index = i;
+        #pragma omp critical // gather results
+        {
+            if (local_max > max_value) {
+                max_value = local_max;
+                max_index = local_index;
+            }
         }
     }
-
-    max_idx[0] = static_cast<int64_t>(max_index);
+    max_idx[0] = max_index;
     if constexpr (std::is_same_v<T, llaisys::bf16_t> || std::is_same_v<T, llaisys::fp16_t>) {
         max_val[0] = llaisys::utils::cast<T>(max_value);
     } else {

@@ -20,7 +20,9 @@ void self_attention_(T *attn_val, const T *q, const T *k, const T *v, float scal
             }
         }
     }
-    for (size_t j = 0; j < nhead; j++) {
+
+    #pragma omp parallel for
+    for (int64_t j = 0; j < static_cast<int64_t>(nhead); j++) {
         size_t head_idx = j * nkvhead / nhead;
         for (size_t i = 0; i < seqlen; i++) {
             // Pass 1: compute all dot-product scores and find max for numerical stability
