@@ -380,9 +380,9 @@ All projects must be implemented in [InfiniLM](https://github.com/InfiniTensor/I
 
 The following project directions are available:
 
-### Project #1: Support New Models and Architectures
+### Project #1: Support New Models and Architectures (Recommended)
 
-Add support for a new model in InfiniLM. The evaluation depends on the model's complexity, the amount of reusable infrastructure introduced, and the completeness of the implementation and tests. Models that require new architectures or mechanisms—such as MLA, MTP, MoE, NSA, Mamba, RWKV, UltraMem, Titans, or MiniMax architectures—are valued differently from variants that reuse an existing implementation almost unchanged.
+Add support for a new model in InfiniLM. Implementations should support NVIDIA GPUs as a baseline. Additional support for domestic accelerator platforms may earn extra credit based on the difficulty of the adaptation. Ascend is eligible for the largest bonus because adapting to it requires the most substantial implementation changes. The evaluation also depends on the model's complexity, the amount of reusable infrastructure introduced, and the completeness of the implementation and tests. Models that require new architectures or mechanisms—such as MLA, MTP, MoE, NSA, Mamba, RWKV, UltraMem, Titans, or MiniMax architectures—are valued differently from variants that reuse an existing implementation almost unchanged.
 
 ### Project #2: Performance Optimization
 
