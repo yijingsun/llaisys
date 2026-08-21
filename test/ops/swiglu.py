@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -25,8 +26,14 @@ def test_op_swiglu(
     up, up_ = random_tensor(shape, dtype_name, device_name)
 
     out, out_ = random_tensor(shape, dtype_name, device_name)
+    start_time = time.time()
     torch_swiglu(out, gate, up)
+    end_time = time.time()
+    print(f"    Torch time elapsed: {(end_time - start_time):.2f}s")
+    start_time = time.time()
     llaisys.Ops.swiglu(out_, gate_, up_)
+    end_time = time.time()
+    print(f"    Llaisys time elapsed: {(end_time - start_time):.2f}s\n")
 
     assert check_equal(out_, out, atol=atol, rtol=rtol)
 
@@ -45,7 +52,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", default="cpu", choices=["cpu", "nvidia"], type=str)
     parser.add_argument("--profile", action="store_true")
     args = parser.parse_args()
-    testShapes = [(2, 3), (512, 4096)]
+    testShapes = [(2, 3), (512, 4096), (4096, 4096)]
     testDtypePrec = [
         # type, atol, rtol
         ("f32", 1e-5, 1e-5),
@@ -56,5 +63,4 @@ if __name__ == "__main__":
     for shape in testShapes:
         for dtype_name, atol, rtol in testDtypePrec:
             test_op_swiglu(shape, dtype_name, atol, rtol, args.device, args.profile)
-
     print("\033[92mTest passed!\033[0m\n")

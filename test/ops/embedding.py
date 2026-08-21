@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -22,8 +23,14 @@ def test_op_embedding(
     embd, embd_ = random_tensor(embd_shape, dtype_name, device_name)
     idx, idx_ = random_int_tensor(idx_shape, device_name, high=embd_shape[0])
     out, out_ = random_tensor((idx_shape[0], embd_shape[1]), dtype_name, device_name)
+    start_time = time.time()
     torch_embedding(out, idx, embd)
+    end_time = time.time()
+    print(f"    Torch time elapsed: {(end_time - start_time):.2f}s")
+    start_time = time.time()
     llaisys.Ops.embedding(out_, idx_, embd_)
+    end_time = time.time()
+    print(f"    Llaisys time elapsed: {(end_time - start_time):.2f}s\n")
 
     check_equal(out_, out, strict=True)
 
@@ -45,6 +52,7 @@ if __name__ == "__main__":
     testShapes = [
         ((1,), (2, 3)),
         ((50,), (512, 4096)),
+        ((100,), (4096, 4096)),
     ]
     testDtype = [
         # type

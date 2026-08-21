@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -25,8 +26,14 @@ def test_op_add(
     b, b_ = random_tensor(shape, dtype_name, device_name)
 
     c, c_ = random_tensor(shape, dtype_name, device_name)
+    start_time = time.time()
     torch_add(c, a, b)
+    end_time = time.time()
+    print(f"    Torch time elapsed: {(end_time - start_time):.2f}s")
+    start_time = time.time()
     llaisys.Ops.add(c_, a_, b_)
+    end_time = time.time()
+    print(f"    Llaisys time elapsed: {(end_time - start_time):.2f}s\n")
 
     assert check_equal(c_, c, atol=atol, rtol=rtol)
 
@@ -45,7 +52,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", default="cpu", choices=["cpu", "nvidia"], type=str)
     parser.add_argument("--profile", action="store_true")
     args = parser.parse_args()
-    testShapes = [(2, 3), (512, 4096)]
+    testShapes = [(2, 3), (512, 4096), (4096, 4096)]
     testDtypePrec = [
         # type, atol, rtol
         ("f32", 1e-5, 1e-5),

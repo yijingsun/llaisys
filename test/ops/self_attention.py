@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -49,8 +50,14 @@ def test_op_self_attention(
     scale = 1.0 / (hd**0.5)
 
     attn_val, attn_val_ = random_tensor((qlen, nh, hd), dtype_name, device_name)
+    start_time = time.time()
     torch_self_attention(attn_val, q, k, v, scale)
+    end_time = time.time()
+    print(f"    Torch time elapsed: {(end_time - start_time):.2f}s")
+    start_time = time.time()
     llaisys.Ops.self_attention(attn_val_, q_, k_, v_, scale)
+    end_time = time.time()
+    print(f"    Llaisys time elapsed: {(end_time - start_time):.2f}s\n")
     assert check_equal(attn_val_, attn_val, atol=atol, rtol=rtol)
 
     if profile:
@@ -72,6 +79,7 @@ if __name__ == "__main__":
         # qlen, kvlen, nh, nkvh, hd
         (2, 2, 1, 1, 4),
         (5, 11, 4, 2, 8),
+        (10, 20, 6, 3, 16),
     ]
     testDtypePrec = [
         # type, atol, rtol

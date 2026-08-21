@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -32,8 +33,14 @@ def test_op_linear(
         bias, bias_ = random_tensor((w_shape[0],), dtype_name, device_name)
 
     out, out_ = random_tensor(out_shape, dtype_name, device_name)
+    start_time = time.time()
     torch_linear(out, x, w, bias)
+    end_time = time.time()
+    print(f"    Torch time elapsed: {(end_time - start_time):.2f}s")
+    start_time = time.time()
     llaisys.Ops.linear(out_, x_, w_, bias_)
+    end_time = time.time()
+    print(f"    Llaisys time elapsed: {(end_time - start_time):.2f}s\n")
 
     assert check_equal(out_, out, atol=atol, rtol=rtol)
 

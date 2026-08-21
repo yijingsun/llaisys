@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -31,8 +32,14 @@ def test_op_rms_norm(
     eps = 1e-5
 
     c, c_ = random_tensor(shape, dtype_name, device_name)
+    start_time = time.time()
     torch_rms_norm(c, x, w, eps)
+    end_time = time.time()
+    print(f"    Torch time elapsed: {(end_time - start_time):.2f}s")
+    start_time = time.time()
     llaisys.Ops.rms_norm(c_, x_, w_, eps)
+    end_time = time.time()
+    print(f"    Llaisys time elapsed: {(end_time - start_time):.2f}s\n")
 
     assert check_equal(c_, c, atol=atol, rtol=rtol)
 
